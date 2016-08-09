@@ -1218,3 +1218,16 @@ bool TargetInstrInfo::getInsertSubregInputs(
   InsertedReg.SubIdx = (unsigned)MOSubIdx.getImm();
   return true;
 }
+
+void TargetInstrInfo::emitPatchableOp(StringRef, MachineBasicBlock &MBB,
+                                      MachineBasicBlock::iterator &MBBI) const {
+  auto MIB = BuildMI(MBB, MBBI, MBBI->getDebugLoc(),
+                     get(TargetOpcode::PATCHABLE_OP))
+                 .addImm(2)
+                 .addImm(MBBI->getOpcode());
+
+  for (auto &MO : MBBI->operands())
+    MIB.add(MO);
+
+  MBBI->eraseFromParent();
+}

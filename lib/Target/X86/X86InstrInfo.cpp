@@ -7415,6 +7415,19 @@ X86InstrInfo::getSerializableDirectMachineOperandTargetFlags() const {
   return makeArrayRef(TargetFlags);
 }
 
+void X86InstrInfo::emitPatchableOp(StringRef PatchType,
+                                   MachineBasicBlock &MBB,
+                                   MachineBasicBlock::iterator &MBBI) const {
+  if (PatchType != "ms-hotpatch" || !Subtarget.is32Bit()) {
+    TargetInstrInfo::emitPatchableOp(PatchType, MBB, MBBI);
+    return;
+  }
+
+  BuildMI(MBB, MBBI, MBBI->getDebugLoc(), get(X86::MOV32rr_REV), X86::EDI)
+      .addReg(X86::EDI)
+      .setMIFlag(MachineInstr::FrameSetup);
+}
+
 namespace {
   /// Create Global Base Reg pass. This initializes the PIC
   /// global base register for x86-32.

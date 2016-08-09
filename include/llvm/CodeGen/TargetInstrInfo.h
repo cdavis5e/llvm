@@ -1674,6 +1674,19 @@ public:
     return false;
   }
 
+  /// Emit a patchable operation in the given basic block at the given
+  /// insertion point.
+  ///
+  /// Most of the time, this will be a straight-up \c TargetOpcode::PATCHABLE_OP
+  /// instruction, which will be lowered by the target to a no-op that can
+  /// be safely replaced with a short jump. However, some targets under certain
+  /// conditions can have peculiar requirements for this instruction; these
+  /// targets can provide their own implementation of this to emit the correct
+  /// instruction.
+  virtual void
+  emitPatchableOp(StringRef PatchType, MachineBasicBlock &MBB,
+                  MachineBasicBlock::iterator &MBBI) const;
+
 private:
   unsigned CallFrameSetupOpcode, CallFrameDestroyOpcode;
   unsigned CatchRetOpcode;

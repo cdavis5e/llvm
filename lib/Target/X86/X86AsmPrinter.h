@@ -123,6 +123,8 @@ public:
     SMShadowTracker.emitShadowPadding(*OutStreamer, getSubtargetInfo());
   }
 
+  void EmitConstantPool() override;
+
   bool PrintAsmOperand(const MachineInstr *MI, unsigned OpNo,
                        unsigned AsmVariant, const char *ExtraCode,
                        raw_ostream &OS) override;

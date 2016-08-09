@@ -558,6 +558,10 @@ public:
                      MachineBasicBlock::iterator &It, MachineFunction &MF,
                      const outliner::Candidate &C) const override;
 
+  void
+  emitPatchableOp(StringRef PatchType, MachineBasicBlock &MBB,
+                  MachineBasicBlock::iterator &MBBI) const override;
+
 protected:
   /// Commutes the operands in the given instruction by changing the operands
   /// order and/or changing the instruction's opcode and/or the immediate value
