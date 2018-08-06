@@ -510,6 +510,8 @@ X86TargetLowering::X86TargetLowering(const X86TargetMachine &TM,
   setOperationAction(ISD::STACKRESTORE,       MVT::Other, Expand);
 
   setOperationAction(ISD::DYNAMIC_STACKALLOC, PtrVT, Custom);
+  if (Subtarget.isTarget64BitWine32())
+    setOperationAction(ISD::DYNAMIC_STACKALLOC, MVT::i32, Custom);
 
   // GC_TRANSITION_START and GC_TRANSITION_END need custom lowering.
   setOperationAction(ISD::GC_TRANSITION_START, MVT::Other, Custom);
@@ -1804,7 +1806,7 @@ bool X86TargetLowering::useStackGuardXorFP() const {
 
 SDValue X86TargetLowering::emitStackGuardXorFP(SelectionDAG &DAG, SDValue Val,
                                                const SDLoc &DL) const {
-  EVT PtrTy = getPointerTy(DAG.getDataLayout());
+  EVT PtrTy = getFrameIndexTy(DAG.getDataLayout());
   unsigned XorOp = Subtarget.is64Bit() ? X86::XOR64_FP : X86::XOR32_FP;
   MachineSDNode *Node = DAG.getMachineNode(XorOp, DL, PtrTy, Val);
   return SDValue(Node, 0);
@@ -2927,9 +2929,10 @@ X86TargetLowering::LowerMemArgument(SDValue Chain, CallingConv::ID CallConv,
           break;
       }
       if (MFI.isFixedObjectIndex(FI)) {
+        EVT FIVT = getFrameIndexTy(DAG.getDataLayout());
         SDValue Addr =
-            DAG.getNode(ISD::ADD, dl, PtrVT, DAG.getFrameIndex(FI, PtrVT),
-                        DAG.getIntPtrConstant(Ins[i].PartOffset, dl));
+            DAG.getNode(ISD::ADD, dl, FIVT, DAG.getFrameIndex(FI, PtrVT),
+                        DAG.getConstant(Ins[i].PartOffset, dl, FIVT));
         return DAG.getLoad(
             ValVT, dl, Chain, Addr,
             MachinePointerInfo::getFixedStack(DAG.getMachineFunction(), FI,
@@ -3270,9 +3273,10 @@ SDValue X86TargetLowering::LowerFormalArguments(
     SDValue RSFIN = DAG.getFrameIndex(FuncInfo->getRegSaveFrameIndex(),
                                       getPointerTy(DAG.getDataLayout()));
     unsigned Offset = FuncInfo->getVarArgsGPOffset();
+    EVT FIVT = getFrameIndexTy(DAG.getDataLayout());
     for (SDValue Val : LiveGPRs) {
-      SDValue FIN = DAG.getNode(ISD::ADD, dl, getPointerTy(DAG.getDataLayout()),
-                                RSFIN, DAG.getIntPtrConstant(Offset, dl));
+      SDValue FIN = DAG.getNode(ISD::ADD, dl, FIVT, RSFIN,
+                                DAG.getConstant(Offset, dl, FIVT));
       SDValue Store =
           DAG.getStore(Val.getValue(1), dl, Val, FIN,
                        MachinePointerInfo::getFixedStack(
@@ -3284,13 +3288,14 @@ SDValue X86TargetLowering::LowerFormalArguments(
 
     if (!ArgXMMs.empty() && NumXMMRegs != ArgXMMs.size()) {
       // Now store the XMM (fp + vector) parameter registers.
+      EVT FIVT = getFrameIndexTy(DAG.getDataLayout());
       SmallVector<SDValue, 12> SaveXMMOps;
       SaveXMMOps.push_back(Chain);
       SaveXMMOps.push_back(ALVal);
-      SaveXMMOps.push_back(DAG.getIntPtrConstant(
-                             FuncInfo->getRegSaveFrameIndex(), dl));
-      SaveXMMOps.push_back(DAG.getIntPtrConstant(
-                             FuncInfo->getVarArgsFPOffset(), dl));
+      SaveXMMOps.push_back(DAG.getConstant(
+                             FuncInfo->getRegSaveFrameIndex(), dl, FIVT));
+      SaveXMMOps.push_back(DAG.getConstant(
+                             FuncInfo->getVarArgsFPOffset(), dl, FIVT));
       SaveXMMOps.insert(SaveXMMOps.end(), LiveXMMRegs.begin(),
                         LiveXMMRegs.end());
       MemOps.push_back(DAG.getNode(X86ISD::VASTART_SAVE_XMM_REGS, dl,
@@ -3402,9 +3407,9 @@ SDValue X86TargetLowering::LowerMemOpCallTo(SDValue Chain, SDValue StackPtr,
                                             const CCValAssign &VA,
                                             ISD::ArgFlagsTy Flags) const {
   unsigned LocMemOffset = VA.getLocMemOffset();
-  SDValue PtrOff = DAG.getIntPtrConstant(LocMemOffset, dl);
-  PtrOff = DAG.getNode(ISD::ADD, dl, getPointerTy(DAG.getDataLayout()),
-                       StackPtr, PtrOff);
+  EVT FIVT = getFrameIndexTy(DAG.getDataLayout());
+  SDValue PtrOff = DAG.getConstant(LocMemOffset, dl, FIVT);
+  PtrOff = DAG.getNode(ISD::ADD, dl, FIVT, StackPtr, PtrOff);
   if (Flags.isByVal())
     return CreateCopyOfByValArgument(Arg, PtrOff, Chain, Flags, DAG, dl);
 
@@ -3701,7 +3706,7 @@ X86TargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
       assert(VA.isMemLoc());
       if (!StackPtr.getNode())
         StackPtr = DAG.getCopyFromReg(Chain, dl, RegInfo->getStackRegister(),
-                                      getPointerTy(DAG.getDataLayout()));
+                                      getFrameIndexTy(DAG.getDataLayout()));
       MemOpChains.push_back(LowerMemOpCallTo(Chain, StackPtr, Arg,
                                              dl, DAG, VA, Flags));
     }
@@ -3812,12 +3817,12 @@ X86TargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
 
       if (Flags.isByVal()) {
         // Copy relative to framepointer.
-        SDValue Source = DAG.getIntPtrConstant(VA.getLocMemOffset(), dl);
+        EVT FIVT = getFrameIndexTy(DAG.getDataLayout());
+        SDValue Source = DAG.getConstant(VA.getLocMemOffset(), dl, FIVT);
         if (!StackPtr.getNode())
           StackPtr = DAG.getCopyFromReg(Chain, dl, RegInfo->getStackRegister(),
-                                        getPointerTy(DAG.getDataLayout()));
-        Source = DAG.getNode(ISD::ADD, dl, getPointerTy(DAG.getDataLayout()),
-                             StackPtr, Source);
+                                        FIVT);
+        Source = DAG.getNode(ISD::ADD, dl, FIVT, StackPtr, Source);
 
         MemOpChains2.push_back(CreateCopyOfByValArgument(Source, FIN,
                                                          ArgChain,
@@ -20423,7 +20428,7 @@ X86TargetLowering::LowerDYNAMIC_STACKALLOC(SDValue Op,
   Chain = DAG.getCALLSEQ_START(Chain, 0, 0, dl);
 
   bool Is64Bit = Subtarget.is64Bit();
-  MVT SPTy = getPointerTy(DAG.getDataLayout());
+  MVT SPTy = getFrameIndexTy(DAG.getDataLayout());
 
   SDValue Result;
   if (!Lower) {
@@ -20526,15 +20531,16 @@ SDValue X86TargetLowering::LowerVASTART(SDValue Op, SelectionDAG &DAG) const {
   MemOps.push_back(Store);
 
   // Store ptr to overflow_arg_area
-  FIN = DAG.getNode(ISD::ADD, DL, PtrVT, FIN, DAG.getIntPtrConstant(4, DL));
+  EVT FIVT = getFrameIndexTy(DAG.getDataLayout());
+  FIN = DAG.getNode(ISD::ADD, DL, FIVT, FIN, DAG.getConstant(4, DL, FIVT));
   SDValue OVFIN = DAG.getFrameIndex(FuncInfo->getVarArgsFrameIndex(), PtrVT);
   Store =
       DAG.getStore(Op.getOperand(0), DL, OVFIN, FIN, MachinePointerInfo(SV, 8));
   MemOps.push_back(Store);
 
   // Store ptr to reg_save_area.
-  FIN = DAG.getNode(ISD::ADD, DL, PtrVT, FIN, DAG.getIntPtrConstant(
-      Subtarget.isTarget64BitLP64() ? 8 : 4, DL));
+  FIN = DAG.getNode(ISD::ADD, DL, FIVT, FIN, DAG.getConstant(
+      Subtarget.isTarget64BitLP64() ? 8 : 4, DL, FIVT));
   SDValue RSFIN = DAG.getFrameIndex(FuncInfo->getRegSaveFrameIndex(), PtrVT);
   Store = DAG.getStore(
       Op.getOperand(0), DL, RSFIN, FIN,
@@ -22390,7 +22396,8 @@ unsigned X86TargetLowering::getRegisterByName(const char* RegName, EVT VT,
 SDValue X86TargetLowering::LowerFRAME_TO_ARGS_OFFSET(SDValue Op,
                                                      SelectionDAG &DAG) const {
   const X86RegisterInfo *RegInfo = Subtarget.getRegisterInfo();
-  return DAG.getIntPtrConstant(2 * RegInfo->getSlotSize(), SDLoc(Op));
+  return DAG.getConstant(2 * RegInfo->getSlotSize(), SDLoc(Op),
+                         getFrameIndexTy(DAG.getDataLayout()));
 }
 
 unsigned X86TargetLowering::getExceptionPointerRegister(
@@ -22418,7 +22425,7 @@ SDValue X86TargetLowering::LowerEH_RETURN(SDValue Op, SelectionDAG &DAG) const {
   SDValue Handler   = Op.getOperand(2);
   SDLoc dl      (Op);
 
-  EVT PtrVT = getPointerTy(DAG.getDataLayout());
+  EVT PtrVT = getFrameIndexTy(DAG.getDataLayout());
   const X86RegisterInfo *RegInfo = Subtarget.getRegisterInfo();
   unsigned FrameReg = RegInfo->getFrameRegister(DAG.getMachineFunction());
   assert(((FrameReg == X86::RBP && PtrVT == MVT::i64) ||
@@ -22428,8 +22435,8 @@ SDValue X86TargetLowering::LowerEH_RETURN(SDValue Op, SelectionDAG &DAG) const {
   unsigned StoreAddrReg = (PtrVT == MVT::i64) ? X86::RCX : X86::ECX;
 
   SDValue StoreAddr = DAG.getNode(ISD::ADD, dl, PtrVT, Frame,
-                                 DAG.getIntPtrConstant(RegInfo->getSlotSize(),
-                                                       dl));
+                                  DAG.getConstant(RegInfo->getSlotSize(),
+                                                  dl, PtrVT));
   StoreAddr = DAG.getNode(ISD::ADD, dl, PtrVT, StoreAddr, Offset);
   Chain = DAG.getStore(Chain, dl, Handler, StoreAddr, MachinePointerInfo());
   Chain = DAG.getCopyToReg(Chain, dl, StoreAddrReg, StoreAddr);
@@ -28525,7 +28532,8 @@ X86TargetLowering::emitEHSjLjSetJmp(MachineInstr &MI,
   // restoreMBB:
   if (RegInfo->hasBasePointer(*MF)) {
     const bool Uses64BitFramePtr =
-        Subtarget.isTarget64BitLP64() || Subtarget.isTargetNaCl64();
+        (Subtarget.isTarget64BitLP64() && !Subtarget.isTarget64BitWine32()) ||
+        Subtarget.isTargetNaCl64();
     X86MachineFunctionInfo *X86FI = MF->getInfo<X86MachineFunctionInfo>();
     X86FI->setRestoreBasePointer(MF);
     unsigned FramePtr = RegInfo->getFrameRegister(*MF);
@@ -28941,7 +28949,8 @@ X86TargetLowering::EmitSjLjDispatchBlock(MachineInstr &MI,
   // registers being marked as clobbered.
   if (RI.hasBasePointer(*MF)) {
     const bool FPIs64Bit =
-        Subtarget.isTarget64BitLP64() || Subtarget.isTargetNaCl64();
+        (Subtarget.isTarget64BitLP64() && !Subtarget.isTarget64BitWine32()) ||
+        Subtarget.isTargetNaCl64();
     X86MachineFunctionInfo *MFI = MF->getInfo<X86MachineFunctionInfo>();
     MFI->setRestoreBasePointer(MF);
 
@@ -29310,7 +29319,7 @@ X86TargetLowering::EmitInstrWithCustomInserter(MachineInstr &MI,
            "base pointer in mind");
 
     MachineRegisterInfo &MRI = MF->getRegInfo();
-    MVT SPTy = getPointerTy(MF->getDataLayout());
+    MVT SPTy = getFrameIndexTy(MF->getDataLayout());
     const TargetRegisterClass *AddrRegClass = getRegClassFor(SPTy);
     unsigned computedAddrVReg = MRI.createVirtualRegister(AddrRegClass);
 

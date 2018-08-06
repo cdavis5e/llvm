@@ -543,7 +543,7 @@ static unsigned getLeaOP(LLT Ty, const X86Subtarget &STI) {
   if (Ty == LLT::pointer(0, 64))
     return X86::LEA64r;
   else if (Ty == LLT::pointer(0, 32))
-    return STI.isTarget64BitILP32() ? X86::LEA64_32r : X86::LEA32r;
+    return STI.is64Bit() ? X86::LEA64_32r : X86::LEA32r;
   else
     llvm_unreachable("Can't get LEA opcode. Unsupported type.");
 }

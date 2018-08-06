@@ -45,7 +45,8 @@ X86FrameLowering::X86FrameLowering(const X86Subtarget &STI,
   Is64Bit = STI.is64Bit();
   IsLP64 = STI.isTarget64BitLP64();
   // standard x86_64 and NaCl use 64-bit frame/stack pointers, x32 - 32-bit.
-  Uses64BitFramePtr = STI.isTarget64BitLP64() || STI.isTargetNaCl64();
+  Uses64BitFramePtr = (STI.isTarget64BitLP64() && !STI.isTarget64BitWine32()) ||
+                      STI.isTargetNaCl64();
   StackPtr = TRI->getStackRegister();
 }
 
@@ -990,7 +991,7 @@ void X86FrameLowering::emitPrologue(MachineFunction &MF,
           "ms-hotpatch";
   unsigned FramePtr = TRI->getFrameRegister(MF);
   const unsigned MachineFramePtr =
-      STI.isTarget64BitILP32()
+      (STI.isTarget64BitILP32() || STI.isTarget64BitWine32())
           ? getX86SubSuperRegister(FramePtr, 64) : FramePtr;
   unsigned BasePtr = TRI->getBaseRegister();
   bool HasWinCFI = false;
@@ -1593,9 +1594,11 @@ void X86FrameLowering::emitEpilogue(MachineFunction &MF,
     DL = MBBI->getDebugLoc();
   // standard x86_64 and NaCl use 64-bit frame/stack pointers, x32 - 32-bit.
   const bool Is64BitILP32 = STI.isTarget64BitILP32();
+  const bool Is64BitWine32 = STI.isTarget64BitWine32();
   unsigned FramePtr = TRI->getFrameRegister(MF);
   unsigned MachineFramePtr =
-      Is64BitILP32 ? getX86SubSuperRegister(FramePtr, 64) : FramePtr;
+      (Is64BitILP32 || Is64BitWine32)
+          ? getX86SubSuperRegister(FramePtr, 64) : FramePtr;
 
   bool IsWin64Prologue = MF.getTarget().getMCAsmInfo()->usesWindowsCFI();
   bool NeedsWin64CFI =
@@ -2189,7 +2192,7 @@ void X86FrameLowering::determineCalleeSaves(MachineFunction &MF,
   // Spill the BasePtr if it's used.
   if (TRI->hasBasePointer(MF)){
     unsigned BasePtr = TRI->getBaseRegister();
-    if (STI.isTarget64BitILP32())
+    if (STI.isTarget64BitILP32() || STI.isTarget64BitWine32())
       BasePtr = getX86SubSuperRegister(BasePtr, 64);
     SavedRegs.set(BasePtr);
   }

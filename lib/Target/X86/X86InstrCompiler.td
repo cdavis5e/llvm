@@ -50,14 +50,14 @@ let hasSideEffects = 0, mayLoad = 1, isNotDuplicable = 1, SchedRW = [WriteJump] 
 let Defs = [ESP, EFLAGS, SSP], Uses = [ESP, SSP], SchedRW = [WriteALU] in {
 def ADJCALLSTACKDOWN32 : I<0, Pseudo, (outs),
                            (ins i32imm:$amt1, i32imm:$amt2, i32imm:$amt3),
-                           "#ADJCALLSTACKDOWN", []>, Requires<[NotLP64]>;
+                           "#ADJCALLSTACKDOWN", []>, Requires<[Stack32]>;
 def ADJCALLSTACKUP32   : I<0, Pseudo, (outs), (ins i32imm:$amt1, i32imm:$amt2),
                            "#ADJCALLSTACKUP",
                            [(X86callseq_end timm:$amt1, timm:$amt2)]>,
-                           Requires<[NotLP64]>;
+                           Requires<[Stack32]>;
 }
 def : Pat<(X86callseq_start timm:$amt1, timm:$amt2),
-       (ADJCALLSTACKDOWN32 i32imm:$amt1, i32imm:$amt2, 0)>, Requires<[NotLP64]>;
+       (ADJCALLSTACKDOWN32 i32imm:$amt1, i32imm:$amt2, 0)>, Requires<[Stack32]>;
 
 
 // ADJCALLSTACKDOWN/UP implicitly use/def RSP because they may be expanded into
@@ -68,14 +68,15 @@ def : Pat<(X86callseq_start timm:$amt1, timm:$amt2),
 let Defs = [RSP, EFLAGS, SSP], Uses = [RSP, SSP], SchedRW = [WriteALU] in {
 def ADJCALLSTACKDOWN64 : I<0, Pseudo, (outs),
                            (ins i32imm:$amt1, i32imm:$amt2, i32imm:$amt3),
-                           "#ADJCALLSTACKDOWN", []>, Requires<[IsLP64]>;
+                           "#ADJCALLSTACKDOWN", []>, Requires<[Stack64]>;
 def ADJCALLSTACKUP64   : I<0, Pseudo, (outs), (ins i32imm:$amt1, i32imm:$amt2),
                            "#ADJCALLSTACKUP",
                            [(X86callseq_end timm:$amt1, timm:$amt2)]>,
-                           Requires<[IsLP64]>;
+                           Requires<[Stack64]>;
 }
 def : Pat<(X86callseq_start timm:$amt1, timm:$amt2),
-        (ADJCALLSTACKDOWN64 i32imm:$amt1, i32imm:$amt2, 0)>, Requires<[IsLP64]>;
+        (ADJCALLSTACKDOWN64 i32imm:$amt1, i32imm:$amt2, 0)>,
+        Requires<[Stack64]>;
 
 let SchedRW = [WriteSystem] in {
 
@@ -114,7 +115,7 @@ def SEG_ALLOCA_32 : I<0, Pseudo, (outs GR32:$dst), (ins GR32:$size),
                       "# variable sized alloca for segmented stacks",
                       [(set GR32:$dst,
                          (X86SegAlloca GR32:$size))]>,
-                    Requires<[NotLP64]>;
+                    Requires<[Stack32]>;
 
 let Defs = [RAX, RSP, EFLAGS], Uses = [RSP] in
 def SEG_ALLOCA_64 : I<0, Pseudo, (outs GR64:$dst), (ins GR64:$size),
@@ -136,7 +137,7 @@ let Defs = [EAX, ESP, EFLAGS], Uses = [ESP] in
 def WIN_ALLOCA_32 : I<0, Pseudo, (outs), (ins GR32:$size),
                      "# dynamic stack allocation",
                      [(X86WinAlloca GR32:$size)]>,
-                     Requires<[NotLP64]>;
+                     Requires<[Stack32]>;
 
 let Defs = [RAX, RSP, EFLAGS], Uses = [RSP] in
 def WIN_ALLOCA_64 : I<0, Pseudo, (outs), (ins GR64:$size),
@@ -151,7 +152,7 @@ def WIN_ALLOCA_64 : I<0, Pseudo, (outs), (ins GR64:$size),
 let Constraints = "$src = $dst", isPseudo = 1, Defs = [EFLAGS] in {
   def XOR32_FP : I<0, Pseudo, (outs GR32:$dst), (ins GR32:$src),
                   "xorl\t$$FP, $src", []>,
-                  Requires<[NotLP64]>, Sched<[WriteALU]>;
+                  Requires<[Stack32]>, Sched<[WriteALU]>;
   def XOR64_FP : I<0, Pseudo, (outs GR64:$dst), (ins GR64:$src),
                   "xorq\t$$FP $src", []>,
                   Requires<[In64BitMode]>, Sched<[WriteALU]>;

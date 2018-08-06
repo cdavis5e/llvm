@@ -3863,7 +3863,7 @@ unsigned X86FastISel::X86MaterializeGV(const GlobalValue *GV, MVT VT) {
     } else {
       unsigned Opc =
           TLI.getPointerTy(DL) == MVT::i32
-              ? (Subtarget->isTarget64BitILP32() ? X86::LEA64_32r : X86::LEA32r)
+              ? (Subtarget->is64Bit() ? X86::LEA64_32r : X86::LEA32r)
               : X86::LEA64r;
       addFullAddress(BuildMI(*FuncInfo.MBB, FuncInfo.InsertPt, DbgLoc,
                              TII.get(Opc), ResultReg), AM);
@@ -3908,7 +3908,7 @@ unsigned X86FastISel::fastMaterializeAlloca(const AllocaInst *C) {
     return 0;
   unsigned Opc =
       TLI.getPointerTy(DL) == MVT::i32
-          ? (Subtarget->isTarget64BitILP32() ? X86::LEA64_32r : X86::LEA32r)
+          ? (Subtarget->is64Bit() ? X86::LEA64_32r : X86::LEA32r)
           : X86::LEA64r;
   const TargetRegisterClass *RC = TLI.getRegClassFor(TLI.getPointerTy(DL));
   unsigned ResultReg = createResultReg(RC);

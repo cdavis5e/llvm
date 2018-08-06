@@ -913,6 +913,10 @@ def In64BitMode  : Predicate<"Subtarget->is64Bit()">,
                              AssemblerPredicate<"Mode64Bit", "64-bit mode">;
 def IsLP64  : Predicate<"Subtarget->isTarget64BitLP64()">;
 def NotLP64 : Predicate<"!Subtarget->isTarget64BitLP64()">;
+def Stack32 : Predicate<"!Subtarget->isTarget64BitLP64() || "
+                        "Subtarget->isTarget64BitWine32()">;
+def Stack64 : Predicate<"Subtarget->isTarget64BitLP64() && "
+                        "!Subtarget->isTarget64BitWine32()">;
 def In16BitMode  : Predicate<"Subtarget->is16Bit()">,
                              AssemblerPredicate<"Mode16Bit", "16-bit mode">;
 def Not16BitMode : Predicate<"!Subtarget->is16Bit()">,

@@ -61,7 +61,8 @@ X86RegisterInfo::X86RegisterInfo(const Triple &TT)
     // This matches the simplified 32-bit pointer code in the data layout
     // computation.
     // FIXME: Should use the data layout?
-    bool Use64BitReg = TT.getEnvironment() != Triple::GNUX32;
+    bool Use64BitReg = TT.getEnvironment() != Triple::GNUX32 &&
+                       TT.getEnvironment() != Triple::Wine32;
     StackPtr = Use64BitReg ? X86::RSP : X86::ESP;
     FramePtr = Use64BitReg ? X86::RBP : X86::EBP;
     BasePtr = Use64BitReg ? X86::RBX : X86::EBX;
@@ -756,7 +757,7 @@ unsigned
 X86RegisterInfo::getPtrSizedFrameRegister(const MachineFunction &MF) const {
   const X86Subtarget &Subtarget = MF.getSubtarget<X86Subtarget>();
   unsigned FrameReg = getFrameRegister(MF);
-  if (Subtarget.isTarget64BitILP32())
+  if (Subtarget.isTarget64BitILP32() || Subtarget.isTarget64BitWine32())
     FrameReg = getX86SubSuperRegister(FrameReg, 32);
   return FrameReg;
 }

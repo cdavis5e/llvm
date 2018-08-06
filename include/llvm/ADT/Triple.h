@@ -210,7 +210,8 @@ public:
     Cygnus,
     CoreCLR,
     Simulator,  // Simulator variants of other systems, e.g., Apple's iOS
-    LastEnvironmentType = Simulator
+    Wine32,     // Special environment for running Win32 binaries under 64-bit
+    LastEnvironmentType = Wine32
   };
   enum ObjectFormatType {
     UnknownObjectFormat,

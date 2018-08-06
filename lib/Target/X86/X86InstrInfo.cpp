@@ -78,10 +78,11 @@ UndefRegClearance("undef-reg-clearance",
 void X86InstrInfo::anchor() {}
 
 X86InstrInfo::X86InstrInfo(X86Subtarget &STI)
-    : X86GenInstrInfo((STI.isTarget64BitLP64() ? X86::ADJCALLSTACKDOWN64
-                                               : X86::ADJCALLSTACKDOWN32),
-                      (STI.isTarget64BitLP64() ? X86::ADJCALLSTACKUP64
-                                               : X86::ADJCALLSTACKUP32),
+    : X86GenInstrInfo(
+        ((STI.isTarget64BitLP64() && !STI.isTarget64BitWine32())
+            ? X86::ADJCALLSTACKDOWN64 : X86::ADJCALLSTACKDOWN32),
+        ((STI.isTarget64BitLP64() && !STI.isTarget64BitWine32())
+            ? X86::ADJCALLSTACKUP64 : X86::ADJCALLSTACKUP32),
                       X86::CATCHRET,
                       (STI.is64Bit() ? X86::RETQ : X86::RETL)),
       Subtarget(STI), RI(STI.getTargetTriple()) {
@@ -3100,6 +3101,23 @@ void X86InstrInfo::copyPhysReg(MachineBasicBlock &MBB,
   // All KMASK RegClasses hold the same k registers, can be tested against anyone.
   else if (X86::VK16RegClass.contains(DestReg, SrcReg))
     Opc = Subtarget.hasBWI() ? X86::KMOVQkk : X86::KMOVWkk;
+  else if (X86::GR64RegClass.contains(DestReg) &&
+           X86::GR32RegClass.contains(SrcReg)) {
+    // This can happen with __ptr32 pointers. Since any 32-bit move zeroes
+    // the upper 32 bits of a 64-bit register, we can get away with a 32-bit
+    // move here.
+    Opc = X86::MOV32rr;
+    // But we need the corresponding 32-bit register for the destination.
+    DestReg = getRegisterInfo().getSubReg(DestReg, X86::sub_32bit);
+  } else if (X86::GR32RegClass.contains(DestReg) &&
+             X86::GR64RegClass.contains(SrcReg)) {
+    // This can happen with __ptr32 pointers. Since any 32-bit move zeroes
+    // the upper 32 bits of a 64-bit register, we can get away with a 32-bit
+    // move here.
+    Opc = X86::MOV32rr;
+    // But we need the corresponding 32-bit register for the source.
+    SrcReg = getRegisterInfo().getSubReg(SrcReg, X86::sub_32bit);
+  }
   if (!Opc)
     Opc = CopyToFromAsymmetricReg(DestReg, SrcReg, Subtarget);
 

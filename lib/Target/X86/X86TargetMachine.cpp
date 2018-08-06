@@ -122,6 +122,11 @@ static std::string computeDataLayout(const Triple &TT) {
        (TT.getEnvironment() == Triple::GNUX32 || TT.isOSNaCl())) ||
       !TT.isArch64Bit())
     Ret += "-p:32:32";
+  // On Wine32, add an address space for (ab)using 32-bit pointers.
+  // Put the stack in this address space as well, since we'll be calling
+  // 32-bit functions that expect a 32-bit stack.
+  if (TT.isArch64Bit() && TT.getEnvironment() == Triple::Wine32)
+    Ret += "-p32:32:32-A32";
 
   // Some ABIs align 64 bit integers and doubles to 64 bits, others to 32.
   if (TT.isArch64Bit() || TT.isOSWindows() || TT.isOSNaCl())

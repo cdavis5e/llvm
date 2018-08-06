@@ -540,6 +540,12 @@ public:
                            !TargetTriple.isOSNaCl());
   }
 
+  /// Is this x86_64 with a hybrid ILP32/LP64 programming model (for building
+  /// Wine capable of running 32-bit apps on 64-bit)?
+  bool isTarget64BitWine32() const {
+    return In64BitMode && TargetTriple.getEnvironment() == Triple::Wine32;
+  }
+
   PICStyles::Style getPICStyle() const { return PICStyle; }
   void setPICStyle(PICStyles::Style Style)  { PICStyle = Style; }
 
