@@ -23,9 +23,10 @@ define void @bar(i64 %h.coerce) nounwind {
 entry:
   %h.sroa.0.0.extract.trunc = trunc i64 %h.coerce to i32
   %0 = inttoptr i32 %h.sroa.0.0.extract.trunc to void () addrspace(32)*
-  tail call addrspace(32) void %0() nounwind
+  tail call addrspace(32) void %0() nounwind "based-far-segment"="0xf00d"
 ; CHECK: movl	%edi, -24(%esp)
-; CHECK: movw	$35, -20(%esp)
+; Note: 61453 == 0xf00d
+; CHECK: movw	$61453, -20(%esp)
 ; CHECK: lcalll	*-24(%esp)
   ret void
 }

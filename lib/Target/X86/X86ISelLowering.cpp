@@ -3928,6 +3928,23 @@ X86TargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
   Ops.push_back(Chain);
   Ops.push_back(Callee);
 
+  if (IsFarCall32) {
+    uint16_t Seg = 0;
+    // If the caller specified a custom segment, pass it to the DAG node.
+    if (CI && CI->getAttributes().hasAttribute(AttributeList::FunctionIndex,
+                                               "based-far-segment")) {
+      CI->getAttributes().getAttribute(AttributeList::FunctionIndex,
+                                       "based-far-segment").getValueAsString()
+          .getAsInteger(0, Seg);
+    } else if (II && II->getAttributes().hasAttribute(
+          AttributeList::FunctionIndex, "based-far-segment")) {
+      II->getAttributes().getAttribute(AttributeList::FunctionIndex,
+                                       "based-far-segment").getValueAsString()
+          .getAsInteger(0, Seg);
+    }
+    Ops.push_back(DAG.getConstant(Seg, dl, MVT::i16));
+  }
+
   if (isTailCall)
     Ops.push_back(DAG.getConstant(FPDiff, dl, MVT::i32));
 

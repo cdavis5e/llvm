@@ -344,10 +344,11 @@ let isCall = 1, Uses = [RSP, SSP], SchedRW = [WriteJump] in {
 
   // Special pseudo-instructions for modeling 64->32 far calls.
   let isCodeGenOnly = 1 in {
-  def FARCALL6432r       : PseudoI<(outs), (ins GR32:$dst),
-                                   [(X86farcall32 GR32:$dst)]>;
-  def FARCALL6432m       : PseudoI<(outs), (ins i32mem:$dst),
-                                   [(X86farcall32 (loadi32 addr:$dst))]>;
+  def FARCALL6432r       : PseudoI<(outs), (ins GR32:$dst, i16imm:$seg),
+                                   [(X86farcall32 GR32:$dst, imm:$seg)]>;
+  def FARCALL6432m       : PseudoI<(outs), (ins i32mem:$dst, i16imm:$seg),
+                                   [(X86farcall32 (loadi32 addr:$dst),
+                                                  imm:$seg)]>;
   }
 }
 

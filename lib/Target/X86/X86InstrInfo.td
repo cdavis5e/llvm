@@ -94,7 +94,8 @@ def SDT_X86CallSeqEnd   : SDCallSeqEnd<[SDTCisVT<0, i32>,
 
 def SDT_X86Call   : SDTypeProfile<0, -1, [SDTCisVT<0, iPTR>]>;
 
-def SDT_X86FarCall32 : SDTypeProfile<0, -1, [SDTCisVT<0, i32>]>;
+def SDT_X86FarCall32 : SDTypeProfile<0, -1, [SDTCisVT<0, i32>,
+                                             SDTCisVT<1, i16>]>;
 
 def SDT_X86NtBrind : SDTypeProfile<0, -1, [SDTCisVT<0, iPTR>]>;
 
