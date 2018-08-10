@@ -78,6 +78,10 @@ namespace llvm {
       /// Same as call except it adds the NoTrack prefix.
       NT_CALL,
 
+      /// Same as call except it is compiled to a far call to a 32-bit
+      /// function.
+      FARCALL32,
+
       /// This operation implements the lowering for readcyclecounter.
       RDTSC_DAG,
 

@@ -94,6 +94,8 @@ def SDT_X86CallSeqEnd   : SDCallSeqEnd<[SDTCisVT<0, i32>,
 
 def SDT_X86Call   : SDTypeProfile<0, -1, [SDTCisVT<0, iPTR>]>;
 
+def SDT_X86FarCall32 : SDTypeProfile<0, -1, [SDTCisVT<0, i32>]>;
+
 def SDT_X86NtBrind : SDTypeProfile<0, -1, [SDTCisVT<0, iPTR>]>;
 
 def SDT_X86VASTART_SAVE_XMM_REGS : SDTypeProfile<0, -1, [SDTCisVT<0, i8>,
@@ -203,6 +205,10 @@ def X86NoTrackCall : SDNode<"X86ISD::NT_CALL", SDT_X86Call,
                              SDNPVariadic]>;
 def X86NoTrackBrind : SDNode<"X86ISD::NT_BRIND", SDT_X86NtBrind,
                              [SDNPHasChain]>;
+
+def X86farcall32 : SDNode<"X86ISD::FARCALL32", SDT_X86FarCall32,
+                          [SDNPHasChain, SDNPOutGlue, SDNPOptInGlue,
+                           SDNPVariadic]>;
 
 def X86rep_stos: SDNode<"X86ISD::REP_STOS", SDTX86RepStr,
                         [SDNPHasChain, SDNPInGlue, SDNPOutGlue, SDNPMayStore]>;

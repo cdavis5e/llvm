@@ -3493,11 +3493,18 @@ X86TargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
       (CI && CI->doesNoCfCheck()) || (II && II->doesNoCfCheck());
   const Module *M = MF.getMMI().getModule();
   Metadata *IsCFProtectionSupported = M->getModuleFlag("cf-protection-branch");
+  bool IsFarCall32 = Is64Bit && Subtarget.isTarget64BitWine32() &&
+                     Callee.getSimpleValueType() == MVT::i32;
 
   if (CallConv == CallingConv::X86_INTR)
     report_fatal_error("X86 interrupts may not be called directly");
 
   if (Attr.getValueAsString() == "true")
+    isTailCall = false;
+
+  if (IsFarCall32)
+    // We can't TCO tail calls from 64-bit to 32-bit code.
+    // FIXME: Unless the caller was itself called far by 32-bit code.
     isTailCall = false;
 
   if (Subtarget.isPICStyleGOT() &&
@@ -3515,6 +3522,8 @@ X86TargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
 
   bool IsMustTail = CLI.CS && CLI.CS.isMustTailCall();
   if (IsMustTail) {
+    if (IsFarCall32)
+      report_fatal_error("Cannot tail-call 32-bit function from 64-bit code!");
     // Force this to be a tail call.  The verifier rules are enough to ensure
     // that we can lower this successfully without moving the return address
     // around.
@@ -3994,6 +4003,8 @@ X86TargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
 
   if (HasNoCfCheck && IsCFProtectionSupported) {
     Chain = DAG.getNode(X86ISD::NT_CALL, dl, NodeTys, Ops);
+  } else if (IsFarCall32) {
+    Chain = DAG.getNode(X86ISD::FARCALL32, dl, NodeTys, Ops);
   } else {
     Chain = DAG.getNode(X86ISD::CALL, dl, NodeTys, Ops);
   }
@@ -26754,6 +26765,7 @@ const char *X86TargetLowering::getTargetNodeName(unsigned Opcode) const {
   case X86ISD::NT_BRIND:           return "X86ISD::NT_BRIND";
   case X86ISD::UMWAIT:             return "X86ISD::UMWAIT";
   case X86ISD::TPAUSE:             return "X86ISD::TPAUSE";
+  case X86ISD::FARCALL32:          return "X86ISD::FARCALL32";
   }
   return nullptr;
 }

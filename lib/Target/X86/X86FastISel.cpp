@@ -3205,6 +3205,10 @@ bool X86FastISel::fastLowerCall(CallLoweringInfo &CLI) {
 
   bool Is64Bit        = Subtarget->is64Bit();
   bool IsWin64        = Subtarget->isCallingConvWin64(CC);
+  bool IsFarCall32    = Is64Bit && Subtarget->isTarget64BitWine32() &&
+                        Callee->getType()->isPointerTy() &&
+                        cast<PointerType>(
+                            Callee->getType())->getAddressSpace() == 32;
 
   const CallInst *CI =
       CLI.CS ? dyn_cast<CallInst>(CLI.CS->getInstruction()) : nullptr;
@@ -3224,6 +3228,10 @@ bool X86FastISel::fastLowerCall(CallLoweringInfo &CLI) {
 
   // Functions using retpoline for indirect calls need to use SDISel.
   if (Subtarget->useRetpolineIndirectCalls())
+    return false;
+
+  // If this is a 32-bit downcall, use SDISel.
+  if (IsFarCall32)
     return false;
 
   // Handle only C, fastcc, and webkit_js calling conventions for now.
