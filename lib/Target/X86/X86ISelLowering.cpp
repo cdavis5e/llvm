@@ -2163,7 +2163,8 @@ void X86TargetLowering::insertSSPDeclarations(Module &M) const {
         M.getOrInsertFunction("__security_check_cookie",
                               Type::getVoidTy(M.getContext()),
                               Type::getInt8PtrTy(M.getContext())));
-    SecurityCheckCookie->setCallingConv(CallingConv::X86_FastCall);
+    if (Subtarget.is32Bit())
+      SecurityCheckCookie->setCallingConv(CallingConv::X86_FastCall);
     SecurityCheckCookie->addAttribute(1, Attribute::AttrKind::InReg);
     return;
   }
@@ -2272,6 +2273,23 @@ static SDValue lowerMasksToReg(const SDValue &ValArg, const EVT &ValLoc,
   return DAG.getNode(ISD::ANY_EXTEND, Dl, ValLoc, ValArg);
 }
 
+/// Breaks a 64-bit value into two registers and adds the new node to the DAG.
+static void Pass64BitArgInRegs(
+    const SDLoc &dl, SelectionDAG &DAG, SDValue Chain, SDValue &Arg,
+    SmallVector<std::pair<unsigned, SDValue>, 8> &RegsToPass, CCValAssign &VA,
+    CCValAssign &NextVA) {
+  // Split the value into two i32 values.
+  SDValue Lo, Hi;
+  Lo = DAG.getNode(ISD::EXTRACT_ELEMENT, dl, MVT::i32, Arg,
+                   DAG.getConstant(0, dl, MVT::i32));
+  Hi = DAG.getNode(ISD::EXTRACT_ELEMENT, dl, MVT::i32, Arg,
+                   DAG.getConstant(1, dl, MVT::i32));
+
+  // Attach the two i32 values to their corresponding registers.
+  RegsToPass.push_back(std::make_pair(VA.getLocReg(), Lo));
+  RegsToPass.push_back(std::make_pair(NextVA.getLocReg(), Hi));
+}
+
 /// Breaks v64i1 value into two registers and adds the new node to the DAG
 static void Passv64i1ArgInRegs(
     const SDLoc &Dl, SelectionDAG &DAG, SDValue Chain, SDValue &Arg,
@@ -2286,16 +2304,20 @@ static void Passv64i1ArgInRegs(
   // Before splitting the value we cast it to i64
   Arg = DAG.getBitcast(MVT::i64, Arg);
 
-  // Splitting the value into two i32 types
-  SDValue Lo, Hi;
-  Lo = DAG.getNode(ISD::EXTRACT_ELEMENT, Dl, MVT::i32, Arg,
-                   DAG.getConstant(0, Dl, MVT::i32));
-  Hi = DAG.getNode(ISD::EXTRACT_ELEMENT, Dl, MVT::i32, Arg,
-                   DAG.getConstant(1, Dl, MVT::i32));
+  Pass64BitArgInRegs(Dl, DAG, Chain, Arg, RegsToPass, VA, NextVA);
+}
 
-  // Attach the two i32 types into corresponding registers
-  RegsToPass.push_back(std::make_pair(VA.getLocReg(), Lo));
-  RegsToPass.push_back(std::make_pair(NextVA.getLocReg(), Hi));
+/// Breaks an i64 value into two registers and adds the new node to the DAG.
+static void Passi64ArgInRegs(
+    const SDLoc &dl, SelectionDAG &DAG, SDValue Chain, SDValue &Arg,
+    SmallVector<std::pair<unsigned, SDValue>, 8> &RegsToPass, CCValAssign &VA,
+    CCValAssign &NextVA, const X86Subtarget &Subtarget) {
+  assert(Subtarget.isTarget64BitWine32() && "Expected 64-bit target!");
+  assert(Arg.getValueType() == MVT::i64 && "Expected 64-bit value!");
+  assert(VA.isRegLoc() && NextVA.isRegLoc() &&
+         "The value should reside in two registers!");
+
+  Pass64BitArgInRegs(dl, DAG, Chain, Arg, RegsToPass, VA, NextVA);
 }
 
 SDValue
@@ -2405,11 +2427,14 @@ X86TargetLowering::LowerReturn(SDValue Chain, CallingConv::ID CallConv,
     SmallVector<std::pair<unsigned, SDValue>, 8> RegsToPass;
 
     if (VA.needsCustom()) {
-      assert(VA.getValVT() == MVT::v64i1 &&
-             "Currently the only custom case is when we split v64i1 to 2 regs");
-
-      Passv64i1ArgInRegs(dl, DAG, Chain, ValToCopy, RegsToPass, VA, RVLocs[++I],
+      if (VA.getValVT() == MVT::v64i1)
+        Passv64i1ArgInRegs(dl, DAG, Chain, ValToCopy, RegsToPass, VA,
+                           RVLocs[++I], Subtarget);
+      else if (VA.getValVT() == MVT::i64)
+        Passi64ArgInRegs(dl, DAG, Chain, ValToCopy, RegsToPass, VA, RVLocs[++I],
                          Subtarget);
+      else
+        llvm_unreachable("Unexpected custom return value case!");
 
       assert(2 == RegsToPass.size() &&
              "Expecting two registers after Pass64BitArgInRegs");
@@ -2616,6 +2641,54 @@ static SDValue getv64i1Argument(CCValAssign &VA, CCValAssign &NextVA,
   return DAG.getNode(ISD::CONCAT_VECTORS, Dl, MVT::v64i1, Lo, Hi);
 }
 
+/// Reads two 32 bit registers and creates a 64 bit value.
+/// \param VA The current 32 bit value that needs to be assigned.
+/// \param NextVA The next 32 bit value that needs to be assigned.
+/// \param Root The parent DAG node.
+/// \param [in,out] InFlag Represents an SDValue in the parent DAG node for
+///                        glue purposes. In case the DAG is already using
+///                        physical registers instead of virtual, we should glue
+///                        our new SDValue to this SDValue.
+/// \return a new 64-bit SDValue.
+static SDValue geti64Argument(CCValAssign &VA, CCValAssign &NextVA,
+                              SDValue &Root, SelectionDAG &DAG,
+                              const SDLoc &Dl, const X86Subtarget &Subtarget,
+                              SDValue *InFlag = nullptr) {
+  assert(Subtarget.isTarget64BitWine32() && "Expected 64-bit target!");
+  assert(VA.getValVT() == MVT::i64 &&
+         "Expected first location to be of a 64-bit type!");
+  assert(NextVA.getValVT() == VA.getValVT() &&
+         "The locations should have the same type!");
+  assert(VA.isRegLoc() && NextVA.isRegLoc() &&
+         "The values should reside in two registers!");
+
+  SDValue Lo, Hi;
+  unsigned Reg;
+
+  MachineFunction &MF = DAG.getMachineFunction();
+  const TargetRegisterClass *RC = &X86::GR32RegClass;
+
+  // Read a 32 bit value from the registers.
+  if (nullptr == InFlag) {
+    // When no physical register is present,
+    // create an intermediate virtual register.
+    Reg = MF.addLiveIn(VA.getLocReg(), RC);
+    Lo = DAG.getCopyFromReg(Root, Dl, Reg, MVT::i32);
+    Reg = MF.addLiveIn(NextVA.getLocReg(), RC);
+    Hi = DAG.getCopyFromReg(Root, Dl, Reg, MVT::i32);
+  } else {
+    // When a physical register is available read the value from it and glue
+    // the reads together.
+    Lo = DAG.getCopyFromReg(Root, Dl, VA.getLocReg(), MVT::i32, *InFlag);
+    *InFlag = Lo.getValue(2);
+    Hi = DAG.getCopyFromReg(Root, Dl, NextVA.getLocReg(), MVT::i32, *InFlag);
+    *InFlag = Hi.getValue(2);
+  }
+
+  // Concatenate the two values together.
+  return DAG.getNode(ISD::BUILD_PAIR, Dl, MVT::i64, Lo, Hi);
+}
+
 /// The function will lower a register of various sizes (8/16/32/64)
 /// to a mask value of the expected size (v8i1/v16i1/v32i1/v64i1)
 /// \returns a DAG node contains the operand after lowering to mask type.
@@ -2703,10 +2776,14 @@ SDValue X86TargetLowering::LowerCallResult(
 
     SDValue Val;
     if (VA.needsCustom()) {
-      assert(VA.getValVT() == MVT::v64i1 &&
-             "Currently the only custom case is when we split v64i1 to 2 regs");
-      Val =
-          getv64i1Argument(VA, RVLocs[++I], Chain, DAG, dl, Subtarget, &InFlag);
+      if (VA.getValVT() == MVT::v64i1)
+        Val = getv64i1Argument(VA, RVLocs[++I], Chain, DAG, dl, Subtarget,
+                               &InFlag);
+      else if (VA.getValVT() == MVT::i64)
+        Val = geti64Argument(VA, RVLocs[++I], Chain, DAG, dl, Subtarget,
+                             &InFlag);
+      else
+        llvm_unreachable("Unexpected custom return value case!");
     } else {
       Chain = DAG.getCopyFromReg(Chain, dl, VA.getLocReg(), CopyVT, InFlag)
                   .getValue(1);
@@ -3043,6 +3120,7 @@ SDValue X86TargetLowering::LowerFormalArguments(
   MachineFrameInfo &MFI = MF.getFrameInfo();
   bool Is64Bit = Subtarget.is64Bit();
   bool IsWin64 = Subtarget.isCallingConvWin64(CallConv);
+  bool IsInterop6432 = Subtarget.isCallingConv6432Interop(CallConv);
 
   assert(
       !(isVarArg && canGuaranteeTCO(CallConv)) &&
@@ -3060,9 +3138,11 @@ SDValue X86TargetLowering::LowerFormalArguments(
   SmallVector<CCValAssign, 16> ArgLocs;
   CCState CCInfo(CallConv, isVarArg, MF, ArgLocs, *DAG.getContext());
 
-  // Allocate shadow area for Win64.
+  // Allocate shadow area for Win64 and 32-bit interop.
   if (IsWin64)
     CCInfo.AllocateStack(32, 8);
+  if (IsInterop6432)
+    CCInfo.AllocateStack(12, 4);
 
   CCInfo.AnalyzeArguments(Ins, CC_X86);
 
@@ -3347,7 +3427,8 @@ SDValue X86TargetLowering::LowerFormalArguments(
   }
 
   // Some CCs need callee pop.
-  if (X86::isCalleePop(CallConv, Is64Bit, isVarArg,
+  if (X86::isCalleePop(CallConv, Is64Bit,
+                       Subtarget.isTarget64BitWine32(), isVarArg,
                        MF.getTarget().Options.GuaranteedTailCallOpt)) {
     FuncInfo->setBytesToPopOnReturn(StackSize); // Callee pops everything.
   } else if (CallConv == CallingConv::X86_INTR && Ins.size() == 2) {
@@ -3480,6 +3561,7 @@ X86TargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
   MachineFunction &MF = DAG.getMachineFunction();
   bool Is64Bit        = Subtarget.is64Bit();
   bool IsWin64        = Subtarget.isCallingConvWin64(CallConv);
+  bool IsInterop6432  = Subtarget.isCallingConv6432Interop(CallConv);
   StructReturnType SR = callIsStructReturn(Outs, Subtarget.isTargetMCU());
   bool IsSibcall      = false;
   X86MachineFunctionInfo *X86Info = MF.getInfo<X86MachineFunctionInfo>();
@@ -3551,9 +3633,11 @@ X86TargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
   SmallVector<CCValAssign, 16> ArgLocs;
   CCState CCInfo(CallConv, isVarArg, MF, ArgLocs, *DAG.getContext());
 
-  // Allocate shadow area for Win64.
+  // Allocate shadow area for Win64 and 32-bit interop.
   if (IsWin64)
     CCInfo.AllocateStack(32, 8);
+  if (IsInterop6432 && !IsFarCall32)
+    CCInfo.AllocateStack(12, 4);
 
   CCInfo.AnalyzeArguments(Outs, CC_X86);
 
@@ -4029,8 +4113,9 @@ X86TargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
 
   // Create the CALLSEQ_END node.
   unsigned NumBytesForCalleeToPop;
-  if (X86::isCalleePop(CallConv, Is64Bit, isVarArg,
-                       DAG.getTarget().Options.GuaranteedTailCallOpt))
+  if (X86::isCalleePop(CallConv, Is64Bit, Subtarget.isTarget64BitWine32(),
+                       isVarArg, DAG.getTarget().Options.GuaranteedTailCallOpt,
+                       IsFarCall32))
     NumBytesForCalleeToPop = NumBytes;    // Callee pops everything
   else if (!Is64Bit && !canGuaranteeTCO(CallConv) &&
            !Subtarget.getTargetTriple().isOSMSVCRT() &&
@@ -4237,11 +4322,16 @@ bool X86TargetLowering::IsEligibleForTailCallOptimization(
   bool CCMatch = CallerCC == CalleeCC;
   bool IsCalleeWin64 = Subtarget.isCallingConvWin64(CalleeCC);
   bool IsCallerWin64 = Subtarget.isCallingConvWin64(CallerCC);
+  bool IsCalleeInterop6432 = Subtarget.isCallingConv6432Interop(CalleeCC);
+  bool IsCallerInterop6432 = Subtarget.isCallingConv6432Interop(CallerCC);
 
   // Win64 functions have extra shadow space for argument homing. Don't do the
   // sibcall if the caller and callee have mismatched expectations for this
   // space.
   if (IsCalleeWin64 != IsCallerWin64)
+    return false;
+  // Ditto 32-bit interop.
+  if (IsCalleeInterop6432 != IsCallerInterop6432)
     return false;
 
   if (DAG.getTarget().Options.GuaranteedTailCallOpt) {
@@ -4329,6 +4419,8 @@ bool X86TargetLowering::IsEligibleForTailCallOptimization(
     // Allocate shadow area for Win64
     if (IsCalleeWin64)
       CCInfo.AllocateStack(32, 8);
+    if (IsCalleeInterop6432)
+      CCInfo.AllocateStack(12, 4);
 
     CCInfo.AnalyzeCallOperands(Outs, CC_X86);
     StackArgsSize = CCInfo.getNextStackOffset();
@@ -4388,7 +4480,8 @@ bool X86TargetLowering::IsEligibleForTailCallOptimization(
   }
 
   bool CalleeWillPop =
-      X86::isCalleePop(CalleeCC, Subtarget.is64Bit(), isVarArg,
+      X86::isCalleePop(CalleeCC, Subtarget.is64Bit(),
+                       Subtarget.isTarget64BitWine32(), isVarArg,
                        MF.getTarget().Options.GuaranteedTailCallOpt);
 
   if (unsigned BytesToPop =
@@ -4540,7 +4633,8 @@ bool X86::isOffsetSuitableForCodeModel(int64_t Offset, CodeModel::Model M,
 /// Determines whether the callee is required to pop its own arguments.
 /// Callee pop is necessary to support tail calls.
 bool X86::isCalleePop(CallingConv::ID CallingConv,
-                      bool is64Bit, bool IsVarArg, bool GuaranteeTCO) {
+                      bool is64Bit, bool isWine32, bool IsVarArg,
+                      bool GuaranteeTCO, bool IsFarCall32) {
   // If GuaranteeTCO is true, we force some calls to be callee pop so that we
   // can guarantee TCO.
   if (!IsVarArg && shouldGuaranteeTCO(CallingConv, GuaranteeTCO))
@@ -4552,6 +4646,7 @@ bool X86::isCalleePop(CallingConv::ID CallingConv,
   case CallingConv::X86_StdCall:
   case CallingConv::X86_FastCall:
   case CallingConv::X86_ThisCall:
+    return !is64Bit || (isWine32 && IsFarCall32);
   case CallingConv::X86_VectorCall:
     return !is64Bit;
   }

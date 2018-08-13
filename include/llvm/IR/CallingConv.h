@@ -223,6 +223,10 @@ namespace CallingConv {
     // Calling convention between AArch64 Advanced SIMD functions
     AArch64_VectorCall = 97,
 
+    /// The C convention as implemented for x86-32, but on x86-64. This is
+    /// intended for interoperation between 64-bit and legacy 32-bit code.
+    X86_64_C32 = 98,
+
     /// The highest possible calling convention ID. Must be some 2^k - 1.
     MaxID = 1023
   };

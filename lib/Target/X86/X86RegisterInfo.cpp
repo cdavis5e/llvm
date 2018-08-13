@@ -357,6 +357,16 @@ X86RegisterInfo::getCalleeSavedRegs(const MachineFunction *MF) const {
         return CSR_32_AllRegs_SSE_SaveList;
       return CSR_32_AllRegs_SaveList;
     }
+  case CallingConv::X86_64_C32:
+    if (Is64Bit)
+      return CallsEHReturn ? CSR_6432EHRet_SaveList : CSR_6432_SaveList;
+    break;
+  case CallingConv::X86_StdCall:
+  case CallingConv::X86_FastCall:
+  case CallingConv::X86_ThisCall:
+    if (Subtarget.isTarget64BitWine32())
+      return CallsEHReturn ? CSR_6432EHRet_SaveList : CSR_6432_SaveList;
+    break;
   default:
     break;
   }
@@ -467,6 +477,16 @@ X86RegisterInfo::getCallPreservedMask(const MachineFunction &MF,
         return CSR_32_AllRegs_SSE_RegMask;
       return CSR_32_AllRegs_RegMask;
     }
+  case CallingConv::X86_64_C32:
+    if (Is64Bit)
+      return CSR_6432_RegMask;
+    break;
+  case CallingConv::X86_StdCall:
+  case CallingConv::X86_FastCall:
+  case CallingConv::X86_ThisCall:
+    if (Subtarget.isTarget64BitWine32())
+      return CSR_6432_RegMask;
+    break;
   default:
     break;
   }

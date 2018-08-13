@@ -1178,7 +1178,8 @@ bool X86FastISel::X86SelectRet(const Instruction *I) {
       CC != CallingConv::X86_StdCall &&
       CC != CallingConv::X86_ThisCall &&
       CC != CallingConv::X86_64_SysV &&
-      CC != CallingConv::Win64)
+      CC != CallingConv::Win64 &&
+      CC != CallingConv::X86_64_C32)
     return false;
 
   // Don't handle popping bytes if they don't fit the ret's immediate.
@@ -3205,6 +3206,7 @@ bool X86FastISel::fastLowerCall(CallLoweringInfo &CLI) {
 
   bool Is64Bit        = Subtarget->is64Bit();
   bool IsWin64        = Subtarget->isCallingConvWin64(CC);
+  bool IsInterop6432  = Subtarget->isCallingConv6432Interop(CC);
   bool IsFarCall32    = Is64Bit && Subtarget->isTarget64BitWine32() &&
                         Callee->getType()->isPointerTy() &&
                         cast<PointerType>(
@@ -3246,6 +3248,7 @@ bool X86FastISel::fastLowerCall(CallLoweringInfo &CLI) {
   case CallingConv::X86_ThisCall:
   case CallingConv::Win64:
   case CallingConv::X86_64_SysV:
+  case CallingConv::X86_64_C32:
     break;
   }
 
@@ -3328,6 +3331,8 @@ bool X86FastISel::fastLowerCall(CallLoweringInfo &CLI) {
   // Allocate shadow area for Win64
   if (IsWin64)
     CCInfo.AllocateStack(32, 8);
+  if (IsInterop6432)
+    CCInfo.AllocateStack(12, 4);
 
   CCInfo.AnalyzeCallOperands(OutVTs, OutFlags, CC_X86);
 
@@ -3557,7 +3562,8 @@ bool X86FastISel::fastLowerCall(CallLoweringInfo &CLI) {
 
   // Issue CALLSEQ_END
   unsigned NumBytesForCalleeToPop =
-      X86::isCalleePop(CC, Subtarget->is64Bit(), IsVarArg,
+      X86::isCalleePop(CC, Subtarget->is64Bit(),
+                       Subtarget->isTarget64BitWine32(), IsVarArg,
                        TM.Options.GuaranteedTailCallOpt)
           ? NumBytes // Callee pops everything.
           : computeBytesPoppedByCalleeForSRet(Subtarget, CC, CLI.CS);

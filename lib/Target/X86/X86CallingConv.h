@@ -29,6 +29,14 @@ bool CC_X86_32_RegCall_Assign2Regs(unsigned &ValNo, MVT &ValVT, MVT &LocVT,
                                    CCValAssign::LocInfo &LocInfo,
                                    ISD::ArgFlagsTy &ArgFlags, CCState &State);
 
+/// When compiling a 32-bit calling convention for a 64-bit arch, special
+/// treatment is required for returning 64-bit integers.
+/// The value should be assigned to two 32-bit GPRs.
+/// \return true if registers were allocated and false otherwise.
+bool CC_X86_64_C32_Assign2Regs(unsigned &ValNo, MVT &ValVT, MVT &LocVT,
+                               CCValAssign::LocInfo &LocInfo,
+                               ISD::ArgFlagsTy &ArgFlags, CCState &State);
+
 /// Vectorcall calling convention has special handling for vector types or
 /// HVA for 64 bit arch.
 /// For HVAs shadow registers might be allocated on the first pass

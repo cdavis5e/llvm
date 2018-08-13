@@ -421,6 +421,18 @@ def RetCC_X86_64_HHVM: CallingConv<[
                                  RAX, R10, R11, R13, R14, R15]>>
 ]>;
 
+// Convention for 32-bit interop CCs in 64-bit mode.
+def RetCC_X86_64_C32 : CallingConv<[
+  // 64-bit integers need to be handled specially, due to 64-bit code being
+  // able to use 64-bit registers when 32-bit code cannot. Simply not
+  // specifying what to do with i64 doesn't DTRT: it uses an implicit SRet
+  // instead of splitting the value among EDX:EAX as 32-bit does.
+  CCIfType<[i64], CCCustom<"CC_X86_64_C32_Assign2Regs">>,
+
+  // Otherwise, it's the same as the normal 32-bit convention.
+  CCDelegateTo<RetCC_X86_32_C>
+]>;
+
 
 defm X86_32_RegCall :
 	 X86_RegCall_base<RC_X86_32_RegCall>;
@@ -468,7 +480,19 @@ def RetCC_X86_64 : CallingConv<[
           CCIfSubtarget<"isTargetWin64()",
                         CCDelegateTo<RetCC_X86_Win64_RegCall>>>,
   CCIfCC<"CallingConv::X86_RegCall", CCDelegateTo<RetCC_X86_SysV64_RegCall>>,
-          
+
+  // Handle 32-bit interop CCs.
+  CCIfCC<"CallingConv::X86_64_C32", CCDelegateTo<RetCC_X86_64_C32>>,
+  CCIfCC<"CallingConv::X86_StdCall",
+         CCIfSubtarget<"isTarget64BitWine32()",
+         CCDelegateTo<RetCC_X86_64_C32>>>,
+  CCIfCC<"CallingConv::X86_FastCall",
+         CCIfSubtarget<"isTarget64BitWine32()",
+         CCDelegateTo<RetCC_X86_64_C32>>>,
+  CCIfCC<"CallingConv::X86_ThisCall",
+         CCIfSubtarget<"isTarget64BitWine32()",
+         CCDelegateTo<RetCC_X86_64_C32>>>,
+
   // Mingw64 and native Win64 use Win64 CC
   CCIfSubtarget<"isTargetWin64()", CCDelegateTo<RetCC_X86_Win64_C>>,
 
@@ -794,7 +818,7 @@ def CC_X86_32_Common : CallingConv<[
   CCIfType<[i32, f32], CCAssignToStack<4, 4>>,
 
   // Doubles get 8-byte slots that are 4-byte aligned.
-  CCIfType<[f64], CCAssignToStack<8, 4>>,
+  CCIfType<[i64, f64], CCAssignToStack<8, 4>>,
 
   // Long doubles get slots whose size depends on the subtarget.
   CCIfType<[f80], CCAssignToStack<0, 4>>,
@@ -1031,6 +1055,15 @@ def CC_X86_64 : CallingConv<[
   CCIfCC<"CallingConv::X86_RegCall", CCDelegateTo<CC_X86_SysV64_RegCall>>,
   CCIfCC<"CallingConv::X86_INTR", CCDelegateTo<CC_X86_64_Intr>>,
 
+  // Handle 32-bit interop CCs.
+  CCIfCC<"CallingConv::X86_64_C32", CCDelegateTo<CC_X86_32_C>>,
+  CCIfCC<"CallingConv::X86_StdCall",
+         CCIfSubtarget<"isTarget64BitWine32()", CCDelegateTo<CC_X86_32_C>>>,
+  CCIfCC<"CallingConv::X86_FastCall",
+         CCIfSubtarget<"isTarget64BitWine32()", CCDelegateTo<CC_X86_32_FastCall>>>,
+  CCIfCC<"CallingConv::X86_ThisCall",
+         CCIfSubtarget<"isTarget64BitWine32()", CCDelegateTo<CC_X86_32_ThisCall>>>,
+
   // Mingw64 and native Win64 use Win64 CC
   CCIfSubtarget<"isTargetWin64()", CCDelegateTo<CC_X86_Win64_C>>,
 
@@ -1051,13 +1084,15 @@ def CC_X86 : CallingConv<[
 
 def CSR_NoRegs : CalleeSavedRegs<(add)>;
 
-def CSR_32 : CalleeSavedRegs<(add ESI, EDI, EBX, EBP)>;
-def CSR_64 : CalleeSavedRegs<(add RBX, R12, R13, R14, R15, RBP)>;
+def CSR_32   : CalleeSavedRegs<(add ESI, EDI, EBX, EBP)>;
+def CSR_6432 : CalleeSavedRegs<(add RSI, RDI, RBX, RBP)>;
+def CSR_64   : CalleeSavedRegs<(add RBX, R12, R13, R14, R15, RBP)>;
 
 def CSR_64_SwiftError : CalleeSavedRegs<(sub CSR_64, R12)>;
 
-def CSR_32EHRet : CalleeSavedRegs<(add EAX, EDX, CSR_32)>;
-def CSR_64EHRet : CalleeSavedRegs<(add RAX, RDX, CSR_64)>;
+def CSR_32EHRet   : CalleeSavedRegs<(add EAX, EDX, CSR_32)>;
+def CSR_6432EHRet : CalleeSavedRegs<(add RAX, RDX, CSR_6432)>;
+def CSR_64EHRet   : CalleeSavedRegs<(add RAX, RDX, CSR_64)>;
 
 def CSR_Win64_NoSSE : CalleeSavedRegs<(add RBX, RBP, RDI, RSI, R12, R13, R14, R15)>;
 

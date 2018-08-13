@@ -660,7 +660,8 @@ namespace llvm {
     /// Determines whether the callee is required to pop its
     /// own arguments. Callee pop is necessary to support tail calls.
     bool isCalleePop(CallingConv::ID CallingConv,
-                     bool is64Bit, bool IsVarArg, bool GuaranteeTCO);
+                     bool is64Bit, bool isWine32, bool IsVarArg,
+                     bool GuaranteeTCO, bool IsFarCall32 = false);
 
   } // end namespace X86
 

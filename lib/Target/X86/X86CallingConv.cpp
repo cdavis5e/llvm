@@ -58,6 +58,43 @@ bool CC_X86_32_RegCall_Assign2Regs(unsigned &ValNo, MVT &ValVT, MVT &LocVT,
   return true;
 }
 
+bool CC_X86_64_C32_Assign2Regs(unsigned &ValNo, MVT &ValVT, MVT &LocVT,
+                               CCValAssign::LocInfo &LocInfo,
+                               ISD::ArgFlagsTy &ArgFlags, CCState &State) {
+  // List of GPRs that are available to store return values.
+  static const MCPhysReg RegList[] = {X86::EAX, X86::EDX};
+
+  // This vector will save all available registers for allocation.
+  SmallVector<unsigned, 2> AvailableRegs;
+
+  // Search for available registers.
+  for (auto Reg : RegList) {
+    if (!State.isAllocated(Reg))
+      AvailableRegs.push_back(Reg);
+  }
+
+  const size_t RequiredGPRsUponSplit = 2;
+  if (AvailableRegs.size() < RequiredGPRsUponSplit)
+    return false; // Not enough free registers - continue the search.
+
+  // Allocate the available registers.
+  for (unsigned I = 0; I < RequiredGPRsUponSplit; I++) {
+
+    // Mark the register as allocated.
+    unsigned Reg = State.AllocateReg(AvailableRegs[I]);
+
+    // Since we previously made sure that 2 registers are available
+    // we expect that a real register number will be returned.
+    assert(Reg && "A register should have been available!");
+
+    // Assign the value to the allocated register
+    State.addLoc(CCValAssign::getCustomReg(ValNo, ValVT, Reg, LocVT, LocInfo));
+  }
+
+  // Successful in allocating registers - stop scanning next rules.
+  return true;
+}
+
 static ArrayRef<MCPhysReg> CC_X86_VectorCallGetSSEs(const MVT &ValVT) {
   if (ValVT.is512BitVector()) {
     static const MCPhysReg RegListZMM[] = {X86::ZMM0, X86::ZMM1, X86::ZMM2,

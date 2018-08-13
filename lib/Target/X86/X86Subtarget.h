@@ -805,6 +805,18 @@ public:
     }
   }
 
+  bool isCallingConv6432Interop(CallingConv::ID CC) const {
+    switch (CC) {
+    case CallingConv::X86_64_C32:
+    case CallingConv::X86_FastCall:
+    case CallingConv::X86_StdCall:
+    case CallingConv::X86_ThisCall:
+      return isTarget64BitWine32();
+    default:
+      return false;
+    }
+  }
+
   /// Classify a global variable reference for the current subtarget according
   /// to how we should reference it in a non-pcrel context.
   unsigned char classifyLocalReference(const GlobalValue *GV) const;
