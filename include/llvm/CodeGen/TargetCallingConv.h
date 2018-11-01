@@ -34,6 +34,7 @@ namespace ISD {
     unsigned IsNest : 1;     ///< Nested fn static chain
     unsigned IsReturned : 1; ///< Always returned
     unsigned IsSplit : 1;
+    unsigned IsThunkData : 1;  ///< Data used by thunks
     unsigned IsInAlloca : 1;   ///< Passed with inalloca
     unsigned IsSplitEnd : 1;   ///< Last part of a split
     unsigned IsSwiftSelf : 1;  ///< Swift self parameter
@@ -52,9 +53,9 @@ namespace ISD {
   public:
     ArgFlagsTy()
         : IsZExt(0), IsSExt(0), IsInReg(0), IsSRet(0), IsByVal(0), IsNest(0),
-          IsReturned(0), IsSplit(0), IsInAlloca(0), IsSplitEnd(0),
-          IsSwiftSelf(0), IsSwiftError(0), IsHva(0), IsHvaStart(0),
-          IsSecArgPass(0), ByValAlign(0), OrigAlign(0),
+          IsReturned(0), IsSplit(0), IsThunkData(0), IsInAlloca(0),
+          IsSplitEnd(0), IsSwiftSelf(0), IsSwiftError(0), IsHva(0),
+          IsHvaStart(0), IsSecArgPass(0), ByValAlign(0), OrigAlign(0),
           IsInConsecutiveRegsLast(0), IsInConsecutiveRegs(0),
           IsCopyElisionCandidate(0), ByValSize(0) {
       static_assert(sizeof(*this) == 2 * sizeof(unsigned), "flags are too big");
@@ -113,6 +114,9 @@ namespace ISD {
 
     bool isCopyElisionCandidate()  const { return IsCopyElisionCandidate; }
     void setCopyElisionCandidate() { IsCopyElisionCandidate = 1; }
+
+    bool isThunkData()   const { return IsThunkData; }
+    void setThunkData()  { IsThunkData = 1; }
 
     unsigned getByValAlign() const { return (1U << ByValAlign) / 2; }
     void setByValAlign(unsigned A) {

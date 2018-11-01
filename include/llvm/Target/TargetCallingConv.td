@@ -77,6 +77,10 @@ class CCIfSplit<CCAction A> : CCIf<"ArgFlags.isSplit()", A> {}
 /// the specified action.
 class CCIfSRet<CCAction A> : CCIf<"ArgFlags.isSRet()", A> {}
 
+/// CCIfThunkData - If this argument is marked with the 'thunkdata'
+/// attribute, apply the specified action.
+class CCIfThunkData<CCAction A> : CCIf<"ArgFlags.isThunkData()", A> {}
+
 /// CCIfVarArg - If the current function is vararg - apply the action
 class CCIfVarArg<CCAction A> : CCIf<"State.isVarArg()", A> {}
 

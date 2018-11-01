@@ -190,6 +190,9 @@ def SwiftError : EnumAttr<"swifterror">;
 /// Argument is swift self/context.
 def SwiftSelf : EnumAttr<"swiftself">;
 
+/// Argument is used to pass auxiliary data to thunks.
+def ThunkData : EnumAttr<"thunkdata">;
+
 /// Function must be in a unwind table.
 def UWTable : EnumAttr<"uwtable">;
 

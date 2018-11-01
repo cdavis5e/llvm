@@ -225,6 +225,7 @@ enum Kind {
   kw_strictfp,
   kw_swifterror,
   kw_swiftself,
+  kw_thunkdata,
   kw_uwtable,
   kw_writeonly,
   kw_zeroext,

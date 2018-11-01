@@ -1180,6 +1180,9 @@ static uint64_t getRawAttributeMask(Attribute::AttrKind Val) {
   case Attribute::AllocSize:
     llvm_unreachable("allocsize not supported in raw format");
     break;
+  case Attribute::ThunkData:
+    llvm_unreachable("thunkdata not supported in raw format");
+    break;
   }
   llvm_unreachable("Unsupported attribute type");
 }
@@ -1192,7 +1195,8 @@ static void addRawAttributeValue(AttrBuilder &B, uint64_t Val) {
     if (I == Attribute::Dereferenceable ||
         I == Attribute::DereferenceableOrNull ||
         I == Attribute::ArgMemOnly ||
-        I == Attribute::AllocSize)
+        I == Attribute::AllocSize ||
+        I == Attribute::ThunkData)
       continue;
     if (uint64_t A = (Val & getRawAttributeMask(I))) {
       if (I == Attribute::Alignment)
@@ -1355,6 +1359,8 @@ static Attribute::AttrKind getAttrFromCode(uint64_t Code) {
     return Attribute::OptimizeForSize;
   case bitc::ATTR_KIND_OPTIMIZE_NONE:
     return Attribute::OptimizeNone;
+  case bitc::ATTR_KIND_THUNK_DATA:
+    return Attribute::ThunkData;
   case bitc::ATTR_KIND_READ_NONE:
     return Attribute::ReadNone;
   case bitc::ATTR_KIND_READ_ONLY:

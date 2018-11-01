@@ -1611,6 +1611,10 @@ void Verifier::verifyParameterAttrs(AttributeSet Attrs, Type *Ty,
            "Attribute 'swifterror' only applies to parameters "
            "with pointer type!",
            V);
+    Assert(!Attrs.hasAttribute(Attribute::ThunkData),
+           "Attribute 'thunkdata' only applies to parameters "
+           "with pointer type!",
+           V);
   }
 }
 
@@ -1636,10 +1640,11 @@ void Verifier::verifyFunctionAttrs(FunctionType *FT, AttributeList Attrs,
           !RetAttrs.hasAttribute(Attribute::Returned) &&
           !RetAttrs.hasAttribute(Attribute::InAlloca) &&
           !RetAttrs.hasAttribute(Attribute::SwiftSelf) &&
-          !RetAttrs.hasAttribute(Attribute::SwiftError)),
+          !RetAttrs.hasAttribute(Attribute::SwiftError) &&
+          !RetAttrs.hasAttribute(Attribute::ThunkData)),
          "Attributes 'byval', 'inalloca', 'nest', 'sret', 'nocapture', "
-         "'returned', 'swiftself', and 'swifterror' do not apply to return "
-         "values!",
+         "'returned', 'swiftself', 'swifterror', and 'thunkdata' do not "
+         "apply to return values!",
          V);
   Assert((!RetAttrs.hasAttribute(Attribute::ReadOnly) &&
           !RetAttrs.hasAttribute(Attribute::WriteOnly) &&
@@ -2815,6 +2820,11 @@ void Verifier::verifyCallSite(CallSite CS) {
       Assert(!ArgAttrs.hasAttribute(Attribute::StructRet),
              "Attribute 'sret' cannot be used for vararg call arguments!", I);
 
+      Assert(!ArgAttrs.hasAttribute(Attribute::ThunkData),
+             "Attribute 'thunkdata' cannot be used for "
+             "vararg call arguments!",
+             I);
+
       if (ArgAttrs.hasAttribute(Attribute::InAlloca))
         Assert(Idx == CS.arg_size() - 1, "inalloca isn't on the last argument!",
                I);
@@ -2894,7 +2904,7 @@ static AttrBuilder getParameterABIAttributes(int I, AttributeList Attrs) {
   static const Attribute::AttrKind ABIAttrs[] = {
       Attribute::StructRet, Attribute::ByVal, Attribute::InAlloca,
       Attribute::InReg, Attribute::Returned, Attribute::SwiftSelf,
-      Attribute::SwiftError};
+      Attribute::SwiftError, Attribute::ThunkData};
   AttrBuilder Copy;
   for (auto AK : ABIAttrs) {
     if (Attrs.hasParamAttribute(I, AK))

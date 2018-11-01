@@ -851,6 +851,9 @@ def CC_X86_32_C : CallingConv<[
   // The 'nest' parameter, if any, is passed in ECX.
   CCIfNest<CCAssignToReg<[ECX]>>,
 
+  // The thunk data is always passed in EAX.
+  CCIfSubtarget<"isTarget64BitWine32()", CCIfThunkData<CCAssignToReg<[EAX]>>>,
+
   // The first 3 integer arguments, if marked 'inreg' and if the call is not
   // a vararg call, are passed in integer registers.
   CCIfNotVarArg<CCIfInReg<CCIfType<[i32], CCAssignToReg<[EAX, EDX, ECX]>>>>,
@@ -883,6 +886,9 @@ def CC_X86_32_FastCall : CallingConv<[
   // The 'nest' parameter, if any, is passed in EAX.
   CCIfNest<CCAssignToReg<[EAX]>>,
 
+  // The thunk data is always passed in EAX.
+  CCIfSubtarget<"isTarget64BitWine32()", CCIfThunkData<CCAssignToReg<[EAX]>>>,
+
   // The first 2 integer arguments are passed in ECX/EDX
   CCIfInReg<CCIfType<[ i8], CCAssignToReg<[ CL,  DL]>>>,
   CCIfInReg<CCIfType<[i16], CCAssignToReg<[ CX,  DX]>>>,
@@ -901,6 +907,9 @@ def CC_X86_Win32_VectorCall : CallingConv<[
 ]>;
 
 def CC_X86_32_ThisCall_Common : CallingConv<[
+  // The thunk data is always passed in EAX.
+  CCIfSubtarget<"isTarget64BitWine32()", CCIfThunkData<CCAssignToReg<[EAX]>>>,
+
   // The first integer argument is passed in ECX
   CCIfType<[i32], CCAssignToReg<[ECX]>>,
 

@@ -683,6 +683,7 @@ lltok::Kind LLLexer::LexIdentifier() {
   KEYWORD(speculative_load_hardening);
   KEYWORD(swifterror);
   KEYWORD(swiftself);
+  KEYWORD(thunkdata);
   KEYWORD(uwtable);
   KEYWORD(writeonly);
   KEYWORD(zeroext);

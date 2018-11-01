@@ -3271,7 +3271,7 @@ bool X86FastISel::fastLowerCall(CallLoweringInfo &CLI) {
     return false;
 
   for (auto Flag : CLI.OutFlags)
-    if (Flag.isSwiftError())
+    if (Flag.isSwiftError() || Flag.isThunkData())
       return false;
 
   SmallVector<MVT, 16> OutVTs;

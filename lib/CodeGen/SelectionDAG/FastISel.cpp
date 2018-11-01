@@ -1207,6 +1207,8 @@ bool FastISel::lowerCallTo(CallLoweringInfo &CLI) {
       Flags.setNest();
     if (NeedsRegBlock)
       Flags.setInConsecutiveRegs();
+    if (Arg.IsThunkData)
+      Flags.setThunkData();
     unsigned OriginalAlignment = DL.getABITypeAlignment(Arg.Ty);
     Flags.setOrigAlign(OriginalAlignment);
 
