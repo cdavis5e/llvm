@@ -129,6 +129,8 @@ void initializeEvexToVexInstPassPass(PassRegistry &);
 
 FunctionPass *createX86SpeculativeLoadHardeningPass();
 
+ModulePass *createX866432InteropThunkInserter();
+
 } // End llvm namespace
 
 #endif

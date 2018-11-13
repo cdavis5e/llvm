@@ -106,6 +106,25 @@ void X86AsmPrinter::EmitConstantPool() {
       // continue, only to run into the jump back into the patch.
       OutStreamer->emitFill(Subtarget->is64Bit() ? 128 : 64, 0xcc);
     }
+
+    if (Fn.hasFnAttribute("thunk-32bit-side")) {
+      // If this is the 32-bit side of a thunk, we need to emit a magic
+      // signature here. That way, if we're calling out to a 32-bit function
+      // that just so happens to be a thunk to a 64-bit one, we can skip the
+      // dual far calls and just call the target directly.
+      // Align this magic number to twice the function's alignment so the thunk
+      // and the magic number should wind up on the same page. This should
+      // prevent a spurious page fault.
+      unsigned Align = 1 << MF->getAlignment();
+      OutStreamer->EmitValueToAlignment(2 * Align, 0x90 /* nop */);
+      // Pad the output up to eight bytes before the thunk starts. We want
+      // the magic number to directly abut the thunk, since that's how callers
+      // will find it.
+      OutStreamer->emitFill(Align - 8, 0x90);
+      // We need to emit a magic number that is unmistakably *not* executable
+      // code. ASCII is usually hard to mistake for x86 machine code.
+      OutStreamer->EmitIntValue(0x77496e4554683332 /* 'wInETh32' */, 8);
+    }
   }
 
   AsmPrinter::EmitConstantPool();

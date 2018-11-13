@@ -519,4 +519,6 @@ void X86PassConfig::addPreEmitPass2() {
   const Triple &TT = TM->getTargetTriple();
   if (!TT.isOSDarwin() && !TT.isOSWindows())
     addPass(createCFIInstrInserter());
+  if (TT.getEnvironment() == Triple::Wine32)
+    addPass(createX866432InteropThunkInserter());
 }
