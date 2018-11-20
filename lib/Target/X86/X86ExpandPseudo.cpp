@@ -165,21 +165,6 @@ void X86ExpandPseudo::ExpandICallBranchFunnel(
   JTMBB->erase(JTInst);
 }
 
-/// \returns The target 32-bit code segment for a 64->32 downcall.
-static uint16_t get32BitSegment(uint16_t Seg, const X86Subtarget *STI) {
-  if (Seg)
-    return Seg;
-  if (STI->isTargetDarwin())
-    return 0x001b;
-  if (STI->isTargetLinux())
-    return 0x0023;
-  if (STI->isTargetFreeBSD() || STI->isTargetKFreeBSD() ||
-      STI->isTargetDragonFly())
-    return 0x0033;
-  // FIXME: Add your OS here.
-  return 0x001b;
-}
-
 /// If \p MBBI is a pseudo instruction, this method expands
 /// it to the corresponding (sequence of) actual instruction(s).
 /// \returns true if \p MBBI has been expanded.
@@ -378,43 +363,6 @@ bool X86ExpandPseudo::ExpandMI(MachineBasicBlock &MBB,
   case TargetOpcode::ICALL_BRANCH_FUNNEL:
     ExpandICallBranchFunnel(&MBB, MBBI);
     return true;
-  case X86::FARCALL6432r:
-  case X86::FARCALL6432m: {
-    MachineOperand &JumpTarget = MBBI->getOperand(0);
-    MachineOperand &JumpSeg = MBBI->getOperand(Opcode == X86::FARCALL6432m ?
-                                               5 : 1);
-
-    // Jump to label or value in register.
-    unsigned JumpAddrReg;
-    if (Opcode == X86::FARCALL6432m) {
-      MachineInstrBuilder MIB = BuildMI(MBB, MBBI, DL, TII->get(X86::MOV32rm));
-      JumpAddrReg = X86::R11D;
-      MIB.addReg(JumpAddrReg, RegState::Define);
-      for (unsigned i = 0; i != 5; ++i)
-        MIB.add(MBBI->getOperand(i));
-    } else {
-      JumpAddrReg = JumpTarget.getReg();
-    }
-
-    // Write the offset and the segment. Leave room for the return address.
-    addRegOffset(BuildMI(MBB, MBBI, DL, TII->get(X86::MOV32mr)),
-                 X86::ESP, /*isKill=*/false, -24)
-      .addReg(JumpAddrReg, RegState::Kill);
-    addRegOffset(BuildMI(MBB, MBBI, DL, TII->get(X86::MOV16mi)),
-                 X86::ESP, /*isKill=*/false, -20)
-      .addImm(get32BitSegment(JumpSeg.getImm(), STI));
-    // Now make the actual call.
-    addRegOffset(BuildMI(MBB, MBBI, DL, TII->get(X86::FARCALL32m)),
-                 X86::ESP, /*isKill=*/false, -24);
-
-    MachineInstr &NewMI = *std::prev(MBBI);
-    NewMI.copyImplicitOps(*MBBI->getParent()->getParent(), *MBBI);
-
-    // Delete the pseudo instruction.
-    MBB.erase(MBBI);
-
-    return true;
-  }
   }
   llvm_unreachable("Previous switch has a fallthrough?");
 }

@@ -4012,22 +4012,30 @@ X86TargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
   Ops.push_back(Chain);
   Ops.push_back(Callee);
 
-  if (IsFarCall32) {
-    uint16_t Seg = 0;
-    // If the caller specified a custom segment, pass it to the DAG node.
-    if (CI && CI->getAttributes().hasAttribute(AttributeList::FunctionIndex,
-                                               "based-far-segment")) {
-      CI->getAttributes().getAttribute(AttributeList::FunctionIndex,
-                                       "based-far-segment").getValueAsString()
-          .getAsInteger(0, Seg);
-    } else if (II && II->getAttributes().hasAttribute(
-          AttributeList::FunctionIndex, "based-far-segment")) {
-      II->getAttributes().getAttribute(AttributeList::FunctionIndex,
-                                       "based-far-segment").getValueAsString()
-          .getAsInteger(0, Seg);
-    }
-    Ops.push_back(DAG.getConstant(Seg, dl, MVT::i16));
+  unsigned NumBytesForCalleeToPop;
+  if (X86::isCalleePop(CallConv, Is64Bit, Subtarget.isTarget64BitWine32(),
+                       isVarArg, DAG.getTarget().Options.GuaranteedTailCallOpt,
+                       IsFarCall32))
+    NumBytesForCalleeToPop = NumBytes;    // Callee pops everything
+  else if (!Is64Bit && !canGuaranteeTCO(CallConv) &&
+           !Subtarget.getTargetTriple().isOSMSVCRT() &&
+           SR == StackStructReturn)
+    // If this is a call to a struct-return function, the callee
+    // pops the hidden struct pointer, so we have to push it back.
+    // This is common for Darwin/X86, Linux & Mingw32 targets.
+    // For MSVC Win32 targets, the caller pops the hidden struct pointer.
+    NumBytesForCalleeToPop = 4;
+  else
+    NumBytesForCalleeToPop = 0;  // Callee pops nothing.
+
+  if (CLI.DoesNotReturn && !getTargetMachine().Options.TrapUnreachable) {
+    // No need to reset the stack after the call if the call doesn't return. To
+    // make the MI verify, we'll pretend the callee does it for us.
+    NumBytesForCalleeToPop = NumBytes;
   }
+
+  if (IsFarCall32)
+    Ops.push_back(DAG.getConstant(NumBytesForCalleeToPop, dl, MVT::i16));
 
   if (isTailCall)
     Ops.push_back(DAG.getConstant(FPDiff, dl, MVT::i32));
@@ -4112,28 +4120,6 @@ X86TargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
   InFlag = Chain.getValue(1);
 
   // Create the CALLSEQ_END node.
-  unsigned NumBytesForCalleeToPop;
-  if (X86::isCalleePop(CallConv, Is64Bit, Subtarget.isTarget64BitWine32(),
-                       isVarArg, DAG.getTarget().Options.GuaranteedTailCallOpt,
-                       IsFarCall32))
-    NumBytesForCalleeToPop = NumBytes;    // Callee pops everything
-  else if (!Is64Bit && !canGuaranteeTCO(CallConv) &&
-           !Subtarget.getTargetTriple().isOSMSVCRT() &&
-           SR == StackStructReturn)
-    // If this is a call to a struct-return function, the callee
-    // pops the hidden struct pointer, so we have to push it back.
-    // This is common for Darwin/X86, Linux & Mingw32 targets.
-    // For MSVC Win32 targets, the caller pops the hidden struct pointer.
-    NumBytesForCalleeToPop = 4;
-  else
-    NumBytesForCalleeToPop = 0;  // Callee pops nothing.
-
-  if (CLI.DoesNotReturn && !getTargetMachine().Options.TrapUnreachable) {
-    // No need to reset the stack after the call if the call doesn't return. To
-    // make the MI verify, we'll pretend the callee does it for us.
-    NumBytesForCalleeToPop = NumBytes;
-  }
-
   // Returns a flag for retval copy to use.
   if (!IsSibcall) {
     Chain = DAG.getCALLSEQ_END(Chain,

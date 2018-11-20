@@ -1,59 +1,83 @@
-; RUN: llc < %s -mtriple=x86_64-linux-wine32  | FileCheck %s
-; RUN: llc < %s -mtriple=x86_64-linux-wine32 -fast-isel | FileCheck %s
+; RUN: llc < %s -mtriple=x86_64-linux-wine32 -relocation-model=pic  | FileCheck %s
+; RUN: llc < %s -mtriple=x86_64-linux-wine32 -relocation-model=pic -fast-isel | FileCheck %s
 
 ; Test for 32-bit function pointers with 32-bit calling conventions
 
-@foo = external global void (i8 addrspace(32)*, i64) addrspace(32)*
-@bar = external global void (i8 addrspace(32)*, i64) addrspace(32)*
-@baz = external global void (i8 addrspace(32)*, i32, i64) addrspace(32)*
-@quux = external global void (i8 addrspace(32)*, i64) addrspace(32)*
+%struct.__thunk_data = type { i64, i64, i64, i64, i64, i64 }
+
+@foo = external global void (%struct.__thunk_data addrspace(32)*, i8 addrspace(32)*, i64) addrspace(32)*
+@bar = external global void (%struct.__thunk_data addrspace(32)*, i8 addrspace(32)*, i64) addrspace(32)*
+@baz = external global void (%struct.__thunk_data addrspace(32)*, i8 addrspace(32)*, i32, i64) addrspace(32)*
+@quux = external global void (%struct.__thunk_data addrspace(32)*, i8 addrspace(32)*, i64) addrspace(32)*
 
 define void @test(i8 addrspace(32)* %h) nounwind uwtable {
 entry:
-  %0 = load void (i8 addrspace(32)*, i64) addrspace(32)*, void (i8 addrspace(32)*, i64) addrspace(32)** @foo, align 4
-; For some reason, FastISel makes a direct reference instead of a RIP-relative
-; one (FIXME?).
-; CHECK: movl	foo{{(\(%rip\))?}}, %[[REG:e[^,]*|r[0-9]+d]]
-  tail call x86_64_c32cc addrspace(32) void %0(i8 addrspace(32)* %h, i64 0) nounwind
+  %td = alloca %struct.__thunk_data, align 8, addrspace(32)
+  %0 = load void (%struct.__thunk_data addrspace(32)*, i8 addrspace(32)*, i64) addrspace(32)*, void (%struct.__thunk_data addrspace(32)*, i8 addrspace(32)*, i64) addrspace(32)** @foo, align 4
+; CHECK:      movq	foo@GOTPCREL(%rip), %rax
+; CHECK-NEXT: movl	(%rax), %{{[er]}}[[REG:[a-z]*|[0-9]+]]{{d?}}
+  tail call x86_64_c32cc addrspace(32) void %0(%struct.__thunk_data addrspace(32)* thunkdata %td, i8 addrspace(32)* %h, i64 0) nounwind
 ; CHECK: movl	%esp, %e[[PTR:.*]]
 ; CHECK: movl	%edi, (%r[[PTR]])
 ; CHECK: movq	$0, 4(%r[[PTR]])
-; CHECK: movl	%[[REG]], -24(%esp)
-; CHECK: movw	$35, -20(%esp)
-; CHECK: lcalll	*-24(%esp)
-  %1 = load void (i8 addrspace(32)*, i64) addrspace(32)*, void (i8 addrspace(32)*, i64) addrspace(32)** @bar, align 4
-; CHECK: movl	bar{{(\(%rip\))?}}, %[[REG2:e[^,]*|r[0-9]+d]]
-  tail call x86_stdcallcc addrspace(32) void %1(i8 addrspace(32)* %h, i64 0) nounwind
+; CHECK: movq	%r[[REG]], 8(%eax)
+; CHECK: callq	__i386_on_x86_64_invoke32_64_0
+  %1 = load void (%struct.__thunk_data addrspace(32)*, i8 addrspace(32)*, i64) addrspace(32)*, void (%struct.__thunk_data addrspace(32)*, i8 addrspace(32)*, i64) addrspace(32)** @bar, align 4
+; CHECK:      movq	bar@GOTPCREL(%rip), %rax
+; CHECK-NEXT: movl	(%rax), %{{[er]}}[[REG2:[a-z]*|[0-9]+]]{{d?}}
+  tail call x86_stdcallcc addrspace(32) void %1(%struct.__thunk_data addrspace(32)* thunkdata %td, i8 addrspace(32)* %h, i64 0) nounwind
 ; The callee will pop only 12 bytes from the stack. Make sure the stack
 ; gets readjusted after the call.
 ; CHECK: movl	%esp, %e[[PTR:.*]]
 ; CHECK: movl	%edi, (%r[[PTR]])
 ; CHECK: movq	$0, 4(%r[[PTR]])
-; CHECK: movl	%[[REG2]], -24(%esp)
-; CHECK: movw	$35, -20(%esp)
-; CHECK: lcalll	*-24(%esp)
+; CHECK: movq	%r[[REG2]], 8(%eax)
+; CHECK: callq	__i386_on_x86_64_invoke32_64_12
 ; CHECK: subl	$12, %esp
-  %2 = load void (i8 addrspace(32)*, i32, i64) addrspace(32)*, void (i8 addrspace(32)*, i32, i64) addrspace(32)** @baz, align 4
-; CHECK: movl	baz{{(\(%rip\))?}}, %[[REG3:e[^,]*|r[0-9]+d]]
-  tail call x86_fastcallcc addrspace(32) void %2(i8 addrspace(32)* inreg %h, i32 inreg 0, i64 0) nounwind
+  %2 = load void (%struct.__thunk_data addrspace(32)*, i8 addrspace(32)*, i32, i64) addrspace(32)*, void (%struct.__thunk_data addrspace(32)*, i8 addrspace(32)*, i32, i64) addrspace(32)** @baz, align 4
+; CHECK: movq	baz@GOTPCREL(%rip), %rax
+; CHECK: movl	(%rax), %{{[er]}}[[REG3:[a-z]*|[0-9]+]]{{d?}}
+  tail call x86_fastcallcc addrspace(32) void %2(%struct.__thunk_data addrspace(32)* thunkdata %td, i8 addrspace(32)* inreg %h, i32 inreg 0, i64 0) nounwind
 ; CHECK: movl	%esp, %e[[PTR:.*]]
 ; CHECK: movq	$0, (%r[[PTR]])
 ; CHECK: xorl	%edx, %edx
 ; CHECK: movl	%edi, %ecx
-; CHECK: movl	%[[REG3]], -24(%esp)
-; CHECK: movw	$35, -20(%esp)
-; CHECK: lcalll	*-24(%esp)
+; CHECK: movq	%r[[REG3]], 8(%eax)
+; CHECK: callq  __i386_on_x86_64_invoke32_64_8
 ; CHECK: subl	$8, %esp
-  %3 = load void (i8 addrspace(32)*, i64) addrspace(32)*, void (i8 addrspace(32)*, i64) addrspace(32)** @quux, align 4
-; CHECK: movl	quux{{(\(%rip\))?}}, %[[REG4:e[^,]*|r[0-9]+d]]
-  tail call x86_thiscallcc addrspace(32) void %3(i8 addrspace(32)* inreg %h, i64 0) nounwind
+  %3 = load void (%struct.__thunk_data addrspace(32)*, i8 addrspace(32)*, i64) addrspace(32)*, void (%struct.__thunk_data addrspace(32)*, i8 addrspace(32)*, i64) addrspace(32)** @quux, align 4
+; CHECK: movq	quux@GOTPCREL(%rip), %rax
+; CHECK: movl	(%rax), %{{[er]}}[[REG4:[a-z]*|[0-9]+]]{{d?}}
+  tail call x86_thiscallcc addrspace(32) void %3(%struct.__thunk_data addrspace(32)* thunkdata %td, i8 addrspace(32)* inreg %h, i64 0) nounwind
 ; CHECK: movl	%esp, %e[[PTR:.*]]
 ; CHECK: movq	$0, (%r[[PTR]])
 ; CHECK: movl	%edi, %ecx
-; CHECK: movl	%[[REG4]], -24(%esp)
-; CHECK: movw	$35, -20(%esp)
-; CHECK: lcalll	*-24(%esp)
-; We should only have to pop 16 bytes, since the callee popped 8 bytes.
-; CHECK: addl	$16, %esp
+; CHECK: movq	%r[[REG4]], 8(%eax)
+; CHECK: callq  __i386_on_x86_64_invoke32_64_8
+; We should only have to pop 64 bytes, since the callee popped 8 bytes.
+; CHECK: addl	$64, %esp
   ret void
 }
+
+; CHECK-LABEL: __i386_on_x86_64_invoke32_64_0:
+; CHECK: jmpq *%r8
+; CHECK: movq __i386_on_x86_64_cs64@GOTPCREL(%rip), %r9
+; CHECK-NEXT: cmpw (%r9), %r8w
+; CHECK: movq __i386_on_x86_64_cs32@GOTPCREL(%rip), %r9
+; CHECK-NEXT: movw (%r9), %r9w
+; CHECK-LABEL: __i386_on_x86_64_invoke32_32:
+; Should really be 'popl', since this is 32-bit code, but we can't use that
+; in 64-bit mode.
+; CHECK: popq (%ebx)
+; CHECK: popq 4(%ebx)
+; CHECK: callq *8(%ebx)
+; CHECK: pushq 4(%ebx)
+; CHECK: pushq (%ebx)
+; CHECK: lretl
+; CHECK-LABEL: __i386_on_x86_64_invoke32_64_12:
+; CHECK: callq *%r8
+; CHECK: retq $12
+; CHECK-LABEL: __i386_on_x86_64_invoke32_64_8:
+; CHECK: callq *%r8
+; CHECK: retq $8
+; CHECK-NOT: __i386_on_x86_64_invoke32_64_8:

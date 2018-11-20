@@ -9,18 +9,23 @@
 ;      foo (h);
 ;    }
 
+%baz = type { [6 x i64] }
 
-define void @bar(i8 addrspace(32)* %h, void (i8 addrspace(32)*) addrspace(32)* nocapture %foo) nounwind {
+define void @bar(i8 addrspace(32)* %h, void (%baz addrspace(32)*, i8 addrspace(32)*) addrspace(32)* nocapture %foo) nounwind {
 entry:
-  tail call addrspace(32) void %foo(i8 addrspace(32)* %h) nounwind
-; CHECK: movl	%esi, %[[REG:e[^,]+|r[0-9]+d]]
-; CHECK: movl	%esi, -24(%esp)
-; Note: 27 == 0x001b
-; CHECK: movw	$27, -20(%esp)
-; CHECK: lcalll	*-24(%esp)
-  tail call addrspace(32) void %foo(i8 addrspace(32)* %h) nounwind
-; CHECK: movl	%[[REG]], -24(%esp)
-; CHECK: movw	$27, -20(%esp)
-; CHECK: lcalll	*-24(%esp)
+  %td = alloca %baz, align 8, addrspace(32)
+  tail call x86_64_c32cc addrspace(32) void %foo(%baz addrspace(32)* thunkdata %td, i8 addrspace(32)* %h) nounwind
+; CHECK-LABEL: _bar:
+; CHECK: movq	%rsi, 8(%eax)
+; CHECK: callq	___i386_on_x86_64_invoke32_64_0
+  tail call x86_64_c32cc addrspace(32) void %foo(%baz addrspace(32)* thunkdata %td, i8 addrspace(32)* %h) nounwind
+; CHECK: movq	%rsi, 8(%eax)
+; CHECK: callq	___i386_on_x86_64_invoke32_64_0
   ret void
 }
+
+; CHECK-LABEL: ___i386_on_x86_64_invoke32_64_0:
+; CHECK: movq ___i386_on_x86_64_cs64@GOTPCREL(%rip), %r9
+; CHECK-NEXT: cmpw (%r9), %r8w
+; CHECK: movq ___i386_on_x86_64_cs32@GOTPCREL(%rip), %r9
+; CHECK-NEXT: movw (%r9), %r9w
