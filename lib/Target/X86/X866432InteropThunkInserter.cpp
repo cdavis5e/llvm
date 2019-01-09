@@ -362,7 +362,13 @@ Function *X866432InteropThunkInserter::getOrInsertFarCallHelper(
   addRegOffset(BuildMI(MBB, DebugLoc(), TII->get(X86::MOV32rm), X86::R8D),
                X86::EAX, /*isKill=*/false, 8);
 
-  // First, check that the hotpatch signature is untouched (8b ff).
+  // First, check that the pointer is properly aligned.
+  BuildMI(MBB, DebugLoc(), TII->get(X86::TEST32ri), X86::R8D)
+      .addImm(0xf);
+  // If it's misaligned, it's probably not one of ours.
+  BuildMI(MBB, DebugLoc(), TII->get(X86::JNE_1)).addMBB(Call32MBB);
+
+  // Then, check that the hotpatch signature is untouched (8b ff).
   addRegOffset(BuildMI(MBB, DebugLoc(), TII->get(X86::CMP16mi)),
                X86::R8D, /*isKill=*/false, 0)
       .addImm(0xff8b);
