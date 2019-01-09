@@ -521,6 +521,10 @@ Function *X866432InteropThunkInserter::getOrInsertFarCallHelper(
   // do it while the CPU waits for the memory accesses to complete.
   BuildMI(Call32MBB, DebugLoc(), TII->get(X86::MOV32rr), X86::EBX)
       .addReg(X86::EAX);
+  // Save the stack pointer, too. Some ill-behaved stdcall callbacks don't
+  // obey the rules of the stdcall convention and pop the stack.
+  BuildMI(Call32MBB, DebugLoc(), TII->get(X86::MOV32rr), X86::ESI)
+      .addReg(X86::ESP);
   // Put the target far address onto the stack.
   addRegOffset(BuildMI(Call32MBB, DebugLoc(), TII->get(X86::MOV32mr)),
                X86::ESP, /*isKill=*/false, -4)
@@ -534,6 +538,8 @@ Function *X866432InteropThunkInserter::getOrInsertFarCallHelper(
                X86::ESP, /*isKill=*/false, 0);
 
   // Restore the registers we saved, and the proper return address.
+  BuildMI(Call32MBB, DebugLoc(), TII->get(X86::MOV32rr), X86::ESP)
+      .addReg(X86::ESI);
   addRegOffset(BuildMI(Call32MBB, DebugLoc(), TII->get(X86::PUSH64rmm)),
                X86::EBX, /*isKill=*/false, 16);
   addRegOffset(BuildMI(Call32MBB, DebugLoc(), TII->get(X86::MOV64rm), X86::RDI),
@@ -544,7 +550,10 @@ Function *X866432InteropThunkInserter::getOrInsertFarCallHelper(
                X86::EBX, /*isKill=*/true, 24);
 
   // Return to caller.
-  BuildMI(Call32MBB, DebugLoc(), TII->get(X86::RETQ));
+  if (PopAmount)
+    BuildMI(Call32MBB, DebugLoc(), TII->get(X86::RETIQ)).addImm(PopAmount);
+  else
+    BuildMI(Call32MBB, DebugLoc(), TII->get(X86::RETQ));
 
   // If we already defined the 32-bit part, we can return now.
   if (!Helper32->empty())
