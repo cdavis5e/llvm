@@ -50,9 +50,8 @@ private:
 
   void scanExistingAsmSymbols(Module &M);
   bool generateThunks(Module &M, Function &Fn);
-  Constant &generateThunk64Side(Module &M, Function &Fn, StringRef Prefix);
-  void generateThunk32Side(Module &M, Constant &Thunk64, Function &Fn,
-                           StringRef Prefix, CallingConv::ID CC);
+  void generateThunk32Side(Module &M, Function &Fn, StringRef Prefix,
+                           CallingConv::ID CC);
   Function *getOrInsertFarCallHelper(Module &M, unsigned PopAmount,
                                      StringRef Prefix, StringRef CS32Name,
                                      StringRef CS64Name);
@@ -124,51 +123,8 @@ bool X866432InteropThunkInserter::generateThunks(Module &M, Function &Fn) {
   if (Fn.hasFnAttribute("thunk-prefix"))
     Prefix = Fn.getFnAttribute("thunk-prefix").getValueAsString();
 
-  Constant &Thunk64 = generateThunk64Side(M, Fn, Prefix);
-  generateThunk32Side(M, Thunk64, Fn, Prefix, CC);
+  generateThunk32Side(M, Fn, Prefix, CC);
   return true;
-}
-
-Constant &X866432InteropThunkInserter::generateThunk64Side(
-    Module &M, Function &Fn, StringRef Prefix) {
-  std::string ThunkName = (Prefix + "thunk64_" + Fn.getName()).str();
-
-  // If it's already defined, don't define it again.
-  Function *ThunkFn = M.getFunction(ThunkName);
-  if (ThunkFn && !ThunkFn->empty())
-    return *ThunkFn;
-
-  if (!ThunkFn)
-    ThunkFn = cast<Function>(M.getOrInsertFunction(
-        ThunkName, Fn.getFunctionType()));
-
-  ThunkFn->setLinkage(GlobalValue::ExternalLinkage);
-
-  // Make sure this isn't one of the symbols defined in inline asm.
-  SmallString<32> Mangled;
-  Mang.getNameWithPrefix(Mangled, ThunkName, M.getDataLayout());
-  if (ExistingAsmSymbols.count(Mangled)) {
-    return *ThunkFn;
-  }
-
-  // Give the function a body so it will get emitted.
-  auto *BB = BasicBlock::Create(M.getContext(), "", ThunkFn);
-  new UnreachableInst(M.getContext(), BB);
-
-  // Skip generating IR. Instead, just generate a MachineFunction directly.
-  MachineFunction &MF = MMI->getOrCreateMachineFunction(*ThunkFn);
-  auto *MBB = MF.CreateMachineBasicBlock();
-  MF.push_back(MBB);
-  STI = &MF.getSubtarget<X86Subtarget>();
-  TII = STI->getInstrInfo();
-
-  // Do the call.
-  BuildMI(MBB, DebugLoc(), TII->get(X86::CALL64pcrel32))
-      .addGlobalAddress(&Fn);
-  // Return far. This needs to be a 32-bit return, since we were called by
-  // 32-bit code.
-  BuildMI(MBB, DebugLoc(), TII->get(X86::LRETL));
-  return *ThunkFn;
 }
 
 static unsigned getTypeStackSize(const DataLayout &DL, Type *Ty) {
@@ -176,9 +132,8 @@ static unsigned getTypeStackSize(const DataLayout &DL, Type *Ty) {
 }
 
 void X866432InteropThunkInserter::generateThunk32Side(
-    Module &M, Constant &Thunk64, Function &Fn, StringRef Prefix,
-    CallingConv::ID CC) {
-  std::string ThunkName = (Prefix + "thunk32_" + Fn.getName()).str();
+    Module &M, Function &Fn, StringRef Prefix, CallingConv::ID CC) {
+  std::string ThunkName = (Prefix + "thunk_" + Fn.getName()).str();
 
   // If it's already defined, don't define it again.
   Function *ThunkFn = M.getFunction(ThunkName);
@@ -207,24 +162,21 @@ void X866432InteropThunkInserter::generateThunk32Side(
   Mang.getNameWithPrefix(Mangled, Fn.getName(), M.getDataLayout());
   ThunkFn->addFnAttr("thunk-32bit-side", Mangled);
 
-  // Get a global variable to hold the address of the 64-bit thunk.
-  auto *GV = new GlobalVariable(M, Thunk64.getType(), true,
-                                GlobalValue::PrivateLinkage, &Thunk64,
-                                "", nullptr, GlobalVariable::NotThreadLocal,
-                                32);
+  // Skip generating IR. Instead, just generate a MachineFunction directly.
+  MachineFunction &MF = MMI->getOrCreateMachineFunction(*ThunkFn);
+  auto *MBB = MF.CreateMachineBasicBlock();
+  // The 64-bit part has an IR-level basic block so we can take its address.
+  auto *MBB64 = MF.CreateMachineBasicBlock(BB);
+  MF.push_back(MBB);
+  MF.push_back(MBB64);
+  STI = &MF.getSubtarget<X86Subtarget>();
+  TII = STI->getInstrInfo();
 
   // Get the external variable holding the segment selector to use.
   StringRef CSName = "__i386_on_x86_64_cs64";
   if (Fn.hasFnAttribute("thunk-cs64-name"))
     CSName = Fn.getFnAttribute("thunk-cs64-name").getValueAsString();
   auto *TargetCS = getExternalObject(M, CSName);
-
-  // Skip generating IR. Instead, just generate a MachineFunction directly.
-  MachineFunction &MF = MMI->getOrCreateMachineFunction(*ThunkFn);
-  auto *MBB = MF.CreateMachineBasicBlock();
-  MF.push_back(MBB);
-  STI = &MF.getSubtarget<X86Subtarget>();
-  TII = STI->getInstrInfo();
 
   // Insert a magic 'mov edi, edi' (8b ff) instruction so this can be
   // hotpatched. The prefix data will get overwritten by the hotpatch jump.
@@ -234,13 +186,23 @@ void X866432InteropThunkInserter::generateThunk32Side(
   // Get the current instruction pointer to use as a PIC base.
   BuildMI(MBB, DebugLoc(), TII->get(X86::MOVPC32r), X86::EAX).addImm(0);
 
-  // Move the offset part of the far pointer onto the stack.
-  BuildMI(MBB, DebugLoc(), TII->get(X86::PUSH64rmm))
-      .addReg(X86::EAX)                                    // Base
-      .addImm(1)                                           // Scale
-      .addReg(0)                                           // Index
-      .addGlobalAddress(GV, 0, X86II::MO_PIC_BASE_OFFSET)  // Displacement
+  // Move the offset part of the far pointer onto the stack. This is tricky
+  // because we need to LEA the block address, but we only have one register.
+  // The only place we have to save the PIC base is in the stack.
+  BuildMI(MBB, DebugLoc(), TII->get(X86::PUSH64r)).addReg(X86::RAX);
+  BuildMI(MBB, DebugLoc(), TII->get(X86::LEA64_32r), X86::EAX)
+      .addReg(X86::EAX)  // Base
+      .addImm(1)         // Scale
+      .addReg(0)         // Index
+                         // Displacement
+      .addBlockAddress(BlockAddress::get(BB), 0, X86II::MO_PIC_BASE_OFFSET)
       .addReg(0);
+  addRegOffset(BuildMI(MBB, DebugLoc(), TII->get(X86::MOV32mr)),
+               X86::ESP, /*isKill=*/false, -8)
+      .addReg(X86::EAX);
+
+  // Now get the PIC base back so we can use it again.
+  BuildMI(MBB, DebugLoc(), TII->get(X86::POP64r), X86::RAX);
 
   // Get the segment part of the far pointer.
   // Since this global might be defined in another image, we have to use a
@@ -256,60 +218,68 @@ void X866432InteropThunkInserter::generateThunk32Side(
       .addReg(0);
   addRegOffset(BuildMI(MBB, DebugLoc(), TII->get(X86::MOV16rm), X86::AX),
                X86::EAX, /*isKill=*/true, 0);
-  // While we're at it, readjust the stack pointer.
-  BuildMI(MBB, DebugLoc(), TII->get(X86::ADD32ri8), X86::ESP)
-      .addReg(X86::ESP)
-      .addImm(4);
 
   // Move the segment selector onto the stack.
   addRegOffset(BuildMI(MBB, DebugLoc(), TII->get(X86::MOV16mr)),
-               X86::ESP, /*isKill=*/false, -4)
+               X86::ESP, /*isKill=*/false, -8)
       .addReg(X86::AX, getKillRegState(true));
 
   // Call the function.
   addRegOffset(BuildMI(MBB, DebugLoc(), TII->get(X86::FARCALL32m)),
-               X86::ESP, /*isKill=*/false, 0);
+               X86::ESP, /*isKill=*/false, -12);
 
   // If this is a cdecl thunk, we can just return now.
   if (CC == CallingConv::X86_64_C32) {
     // This is really a 32-bit return, but in 64-bit mode we can't directly
     // encode 32-bit branch instructions.
     BuildMI(MBB, DebugLoc(), TII->get(X86::RETQ));
-    return;
+  } else {
+    // This follows one of the callee-pop conventions. We need to use a popping
+    // return. But first we have to work out how many bytes to pop.
+    bool FoundECX = false, FoundEDX = false;
+    unsigned PopAmt = 0;
+    FunctionType *FnTy = Fn.getFunctionType();
+    for (unsigned i = 0; i < FnTy->getNumParams(); ++i) {
+      // Ignore the 'thunkdata' parameter; that's a hidden parameter that is
+      // always passed in a register. It's only used when calling a 32-bit
+      // function pointer.
+      if (Fn.hasParamAttribute(i, Attribute::ThunkData))
+        continue;
+      Type *ParamTy = FnTy->getParamType(i);
+      const DataLayout &DL = M.getDataLayout();
+      // For fastcall, the first two integers that fit in 4 bytes are in ECX and
+      // EDX. For thiscall, only the first such argument is in ECX.
+      if ((CC == CallingConv::X86_FastCall ||
+           CC == CallingConv::X86_ThisCall) &&
+          !FoundECX && ParamTy->isIntegerTy() &&
+          DL.getTypeStoreSize(ParamTy) <= 4) {
+        FoundECX = true;
+        continue;
+      }
+      if (CC == CallingConv::X86_FastCall && !FoundEDX &&
+          ParamTy->isIntegerTy() && DL.getTypeStoreSize(ParamTy) <= 4) {
+        FoundEDX = true;
+        continue;
+      }
+      // Otherwise, it's passed on the stack.
+      PopAmt += getTypeStackSize(DL, ParamTy);
+    }
+
+    // Now we can pop the required number of bytes.
+    BuildMI(MBB, DebugLoc(), TII->get(X86::RETIQ)).addImm(PopAmt);
   }
 
-  // This follows one of the callee-pop conventions. We need to use a popping
-  // return. But first we have to work out how many bytes to pop.
-  bool FoundECX = false, FoundEDX = false;
-  unsigned PopAmt = 0;
-  FunctionType *FnTy = Fn.getFunctionType();
-  for (unsigned i = 0; i < FnTy->getNumParams(); ++i) {
-    // Ignore the 'thunkdata' parameter; that's a hidden parameter that is
-    // always passed in a register. It's only used when calling a 32-bit
-    // function pointer.
-    if (Fn.hasParamAttribute(i, Attribute::ThunkData))
-      continue;
-    Type *ParamTy = FnTy->getParamType(i);
-    const DataLayout &DL = M.getDataLayout();
-    // For fastcall, the first two integers that fit in 4 bytes are in ECX and
-    // EDX. For thiscall, only the first such argument is in ECX.
-    if ((CC == CallingConv::X86_FastCall || CC == CallingConv::X86_ThisCall) &&
-        !FoundECX && ParamTy->isIntegerTy() &&
-        DL.getTypeStoreSize(ParamTy) <= 4) {
-      FoundECX = true;
-      continue;
-    }
-    if (CC == CallingConv::X86_FastCall && !FoundEDX &&
-        ParamTy->isIntegerTy() && DL.getTypeStoreSize(ParamTy) <= 4) {
-      FoundEDX = true;
-      continue;
-    }
-    // Otherwise, it's passed on the stack.
-    PopAmt += getTypeStackSize(DL, ParamTy);
-  }
+  // Now for the 64-bit side of the thunk.
+  // Do the call.
+  BuildMI(MBB64, DebugLoc(), TII->get(X86::CALL64pcrel32))
+      .addGlobalAddress(&Fn);
+  // Return far. This needs to be a 32-bit return, since we were called by
+  // 32-bit code.
+  BuildMI(MBB64, DebugLoc(), TII->get(X86::LRETL));
 
-  // Now we can pop the required number of bytes.
-  BuildMI(MBB, DebugLoc(), TII->get(X86::RETIQ)).addImm(PopAmt);
+  // Add the 64-bit part as a successor of the 32-bit part.
+  MBB->addSuccessorWithoutProb(MBB64);
+  MBB64->setHasAddressTaken();
 }
 
 Function *X866432InteropThunkInserter::getOrInsertFarCallHelper(
@@ -319,43 +289,38 @@ Function *X866432InteropThunkInserter::getOrInsertFarCallHelper(
       llvm::IntegerType::get(M.getContext(), 32),
       llvm::PointerType::get(llvm::IntegerType::get(M.getContext(), 8), 32),
       /*isVarArg=*/true);
-  std::string Helper64Name = (Prefix + "invoke32_64_" +utostr(PopAmount)).str();
-  std::string Helper32Name = (Prefix + "invoke32_32").str();
+  std::string HelperName = (Prefix + "invoke32_" +utostr(PopAmount)).str();
 
-  Function *Helper64 = M.getFunction(Helper64Name);
-  Function *Helper32 = M.getFunction(Helper32Name);
+  Function *Helper = M.getFunction(HelperName);
   // If the function is already defined, there's nothing to do.
-  if (Helper64 && !Helper64->empty())
-    return Helper64;
+  if (Helper && !Helper->empty())
+    return Helper;
 
-  // If we have to define the helpers ourselves, make sure they're of the right
+  // If we have to define the helper ourselves, make sure it's of the right
   // type.
-  if (Helper64 && Helper64->getFunctionType() != HelperTy)
-    M.getFunctionList().erase(Helper64);
-  Helper64 = cast<Function>(M.getOrInsertFunction(Helper64Name, HelperTy));
+  if (Helper && Helper->getFunctionType() != HelperTy)
+    M.getFunctionList().erase(Helper);
+  Helper = cast<Function>(M.getOrInsertFunction(HelperName, HelperTy));
 
-  if (Helper32 && Helper32->empty() && Helper32->getFunctionType() != HelperTy){
-    M.getFunctionList().erase(Helper32);
-    Helper32 = nullptr;
-  }
-  if (!Helper32)
-    Helper32 = cast<Function>(M.getOrInsertFunction(Helper32Name, HelperTy));
-
-  Helper64->setLinkage(GlobalValue::LinkOnceAnyLinkage);
+  Helper->setLinkage(GlobalValue::LinkOnceAnyLinkage);
   // Give the function a body so it will get emitted.
-  auto *BB = BasicBlock::Create(M.getContext(), "", Helper64);
+  auto *BB = BasicBlock::Create(M.getContext(), "", Helper);
   new UnreachableInst(M.getContext(), BB);
 
-  MachineFunction &MF64 = MMI->getOrCreateMachineFunction(*Helper64);
-  auto *MBB = MF64.CreateMachineBasicBlock();
-  MF64.push_back(MBB);
-  STI = &MF64.getSubtarget<X86Subtarget>();
+  MachineFunction &MF = MMI->getOrCreateMachineFunction(*Helper);
+  auto *MBB = MF.CreateMachineBasicBlock();
+  MF.push_back(MBB);
+  STI = &MF.getSubtarget<X86Subtarget>();
   TII = STI->getInstrInfo();
 
-  auto *Call64MBB = MF64.CreateMachineBasicBlock();
-  auto *Call32MBB = MF64.CreateMachineBasicBlock();
-  MF64.push_back(Call64MBB);
-  MF64.push_back(Call32MBB);
+  auto *Call64MBB = MF.CreateMachineBasicBlock();
+  auto *Call32MBB = MF.CreateMachineBasicBlock();
+  MF.push_back(Call64MBB);
+  MF.push_back(Call32MBB);
+
+  // This MBB has an IR-level basic block underlying it so it can be addressed.
+  auto *MBB32 = MF.CreateMachineBasicBlock(BB);
+  MF.push_back(MBB32);
 
   auto *CS32 = getExternalObject(M, CS32Name);
   auto *CS64 = getExternalObject(M, CS64Name);
@@ -483,7 +448,7 @@ Function *X866432InteropThunkInserter::getOrInsertFarCallHelper(
       .addReg(BaseReg)
       .addImm(1)
       .addReg(0)
-      .addGlobalAddress(Helper32)
+      .addBlockAddress(BlockAddress::get(BB))
       .addReg(0);
   OpFlags = STI->classifyGlobalReference(CS32);
   if (!isGlobalStubReference(OpFlags)) {
@@ -545,47 +510,37 @@ Function *X866432InteropThunkInserter::getOrInsertFarCallHelper(
   else
     BuildMI(Call32MBB, DebugLoc(), TII->get(X86::RETQ));
 
-  // If we already defined the 32-bit part, we can return now.
-  if (!Helper32->empty())
-    return Helper64;
-
-  Helper32->setLinkage(GlobalValue::LinkOnceAnyLinkage);
-  // Give the function a body so it will get emitted.
-  BB = BasicBlock::Create(M.getContext(), "", Helper32);
-  new UnreachableInst(M.getContext(), BB);
-
-  MachineFunction &MF32 = MMI->getOrCreateMachineFunction(*Helper32);
-  MBB = MF32.CreateMachineBasicBlock();
-  MF32.push_back(MBB);
-  STI = &MF32.getSubtarget<X86Subtarget>();
-  TII = STI->getInstrInfo();
-
+  // And now for the 32-bit part.
   // Fetch the far return address, and save it in the thunk data.
   // We use "64-bit" instructions here, even though this is 32-bit code,
-  // because we're still in 64-bit mode and we can't use the corresponding
-  // 32-bit instructions here. Don't worry; these will encode the same as
-  // their 32-bit counterparts, so this should work.
-  addRegOffset(BuildMI(MBB, DebugLoc(), TII->get(X86::POP64rmm)),
+  // because the compiler is still in 64-bit mode and we can't use the
+  // corresponding 32-bit instructions here. Don't worry; these will encode
+  // the same as their 32-bit counterparts, so this should work.
+  addRegOffset(BuildMI(MBB32, DebugLoc(), TII->get(X86::POP64rmm)),
                X86::EBX, /*isKill=*/false, 0);
-  addRegOffset(BuildMI(MBB, DebugLoc(), TII->get(X86::POP64rmm)),
+  addRegOffset(BuildMI(MBB32, DebugLoc(), TII->get(X86::POP64rmm)),
                X86::EBX, /*isKill=*/false, 4);
 
   // Now we're ready to near-call the target function.
-  addRegOffset(BuildMI(MBB, DebugLoc(), TII->get(X86::CALL64m)),
+  addRegOffset(BuildMI(MBB32, DebugLoc(), TII->get(X86::CALL64m)),
                X86::EBX, /*isKill=*/false, 8);
 
   // Restore the original far return address. Luckily for us, the 64-bit
   // side was kind enough to stash the thunk data pointer in the non-volatile
   // EBX register.
-  addRegOffset(BuildMI(MBB, DebugLoc(), TII->get(X86::PUSH64rmm)),
+  addRegOffset(BuildMI(MBB32, DebugLoc(), TII->get(X86::PUSH64rmm)),
                X86::EBX, /*isKill=*/false, 4);
-  addRegOffset(BuildMI(MBB, DebugLoc(), TII->get(X86::PUSH64rmm)),
+  addRegOffset(BuildMI(MBB32, DebugLoc(), TII->get(X86::PUSH64rmm)),
                X86::EBX, /*isKill=*/false, 0);
 
   // Now return.
-  BuildMI(MBB, DebugLoc(), TII->get(X86::LRETL));
+  BuildMI(MBB32, DebugLoc(), TII->get(X86::LRETL));
 
-  return Helper64;
+  // Add the 32-bit part as a successor of the call-32 block.
+  Call32MBB->addSuccessorWithoutProb(MBB32);
+  MBB32->setHasAddressTaken();
+
+  return Helper;
 }
 
 GlobalValue *X866432InteropThunkInserter::getExternalObject(

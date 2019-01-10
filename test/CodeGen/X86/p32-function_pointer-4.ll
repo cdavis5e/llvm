@@ -21,7 +21,7 @@ entry:
 ; CHECK: movl	%edi, (%r[[PTR]])
 ; CHECK: movq	$0, 4(%r[[PTR]])
 ; CHECK: movq	%r[[REG]], 8(%eax)
-; CHECK: callq	__i386_on_x86_64_invoke32_64_0
+; CHECK: callq	__i386_on_x86_64_invoke32_0
   %1 = load void (%struct.__thunk_data addrspace(32)*, i8 addrspace(32)*, i64) addrspace(32)*, void (%struct.__thunk_data addrspace(32)*, i8 addrspace(32)*, i64) addrspace(32)** @bar, align 4
 ; CHECK:      movq	bar@GOTPCREL(%rip), %rax
 ; CHECK-NEXT: movl	(%rax), %{{[er]}}[[REG2:[a-z]*|[0-9]+]]{{d?}}
@@ -32,7 +32,7 @@ entry:
 ; CHECK: movl	%edi, (%r[[PTR]])
 ; CHECK: movq	$0, 4(%r[[PTR]])
 ; CHECK: movq	%r[[REG2]], 8(%eax)
-; CHECK: callq	__i386_on_x86_64_invoke32_64_12
+; CHECK: callq	__i386_on_x86_64_invoke32_12
 ; CHECK: subl	$12, %esp
   %2 = load void (%struct.__thunk_data addrspace(32)*, i8 addrspace(32)*, i32, i64) addrspace(32)*, void (%struct.__thunk_data addrspace(32)*, i8 addrspace(32)*, i32, i64) addrspace(32)** @baz, align 4
 ; CHECK: movq	baz@GOTPCREL(%rip), %rax
@@ -43,7 +43,7 @@ entry:
 ; CHECK: xorl	%edx, %edx
 ; CHECK: movl	%edi, %ecx
 ; CHECK: movq	%r[[REG3]], 8(%eax)
-; CHECK: callq  __i386_on_x86_64_invoke32_64_8
+; CHECK: callq  __i386_on_x86_64_invoke32_8
 ; CHECK: subl	$8, %esp
   %3 = load void (%struct.__thunk_data addrspace(32)*, i8 addrspace(32)*, i64) addrspace(32)*, void (%struct.__thunk_data addrspace(32)*, i8 addrspace(32)*, i64) addrspace(32)** @quux, align 4
 ; CHECK: movq	quux@GOTPCREL(%rip), %rax
@@ -53,19 +53,18 @@ entry:
 ; CHECK: movq	$0, (%r[[PTR]])
 ; CHECK: movl	%edi, %ecx
 ; CHECK: movq	%r[[REG4]], 8(%eax)
-; CHECK: callq  __i386_on_x86_64_invoke32_64_8
+; CHECK: callq  __i386_on_x86_64_invoke32_8
 ; We should only have to pop 64 bytes, since the callee popped 8 bytes.
 ; CHECK: addl	$64, %esp
   ret void
 }
 
-; CHECK-LABEL: __i386_on_x86_64_invoke32_64_0:
+; CHECK-LABEL: __i386_on_x86_64_invoke32_0:
 ; CHECK: jmpq *%r8
 ; CHECK: movq __i386_on_x86_64_cs64@GOTPCREL(%rip), %r9
 ; CHECK-NEXT: cmpw (%r9), %r8w
 ; CHECK: movq __i386_on_x86_64_cs32@GOTPCREL(%rip), %r9
 ; CHECK-NEXT: movw (%r9), %r9w
-; CHECK-LABEL: __i386_on_x86_64_invoke32_32:
 ; Should really be 'popl', since this is 32-bit code, but we can't use that
 ; in 64-bit mode.
 ; CHECK: popq (%ebx)
@@ -74,10 +73,10 @@ entry:
 ; CHECK: pushq 4(%ebx)
 ; CHECK: pushq (%ebx)
 ; CHECK: lretl
-; CHECK-LABEL: __i386_on_x86_64_invoke32_64_12:
+; CHECK-LABEL: __i386_on_x86_64_invoke32_12:
 ; CHECK: callq *%r8
 ; CHECK: retq $12
-; CHECK-LABEL: __i386_on_x86_64_invoke32_64_8:
+; CHECK-LABEL: __i386_on_x86_64_invoke32_8:
 ; CHECK: callq *%r8
 ; CHECK: retq $8
-; CHECK-NOT: __i386_on_x86_64_invoke32_64_8:
+; CHECK-NOT: __i386_on_x86_64_invoke32_8:

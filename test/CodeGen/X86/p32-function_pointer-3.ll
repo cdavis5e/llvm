@@ -29,15 +29,13 @@ entry:
   tail call x86_64_c32cc addrspace(32) void %0(%foo addrspace(32)* thunkdata %td) nounwind
 ; CHECK-LABEL: bar:
 ; CHECK: movq	%rdi, 8(%eax)
-; CHECK: callq	__wine32_invoke32_64_0
+; CHECK: callq	__wine32_invoke32_0
   ret void
 }
 
-; CHECK-LABEL: __wine32_invoke32_64_0:
+; CHECK-LABEL: __wine32_invoke32_0:
 ; CHECK: cmpw __wine32_cs64, %r8w
 ; CHECK: movw __wine32_cs32, %r9w
-
-; CHECK-LABEL: __wine32_invoke32_32:
 ; CHECK: callq *8(%ebx)
 
 attributes #1 = { nounwind "thunk-prefix"="__wine32_" "thunk-cs32-name"="__wine32_cs32" "thunk-cs64-name"="__wine32_cs64" }

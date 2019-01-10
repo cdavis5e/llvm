@@ -139,86 +139,78 @@ define void @call_quux() {
   ret void
 }
 
-module asm "___i386_on_x86_64_thunk64_bar:
+module asm "___i386_on_x86_64_thunk_baz:
   lretl"
-module asm "___i386_on_x86_64_thunk32_baz:
-  retq"
 
 ; Check that thunks are generated and that they have the correct form.
-; CHECK-LABEL: ___i386_on_x86_64_thunk64_foo:
-; CHECK:         callq _foo
-; CHECK-NEXT:    lretl
-
-; Every 32-bit thunk must be immediately preceded by a magic number. The
+; Every thunk must be immediately preceded by a magic number. The
 ; extra goop is to ensure that the magic number directly abuts the thunk, and
 ; that the thunk and the magic number are on the same page.
 ; CHECK: .p2align 5, 0x90
 ; CHECK: .quad _foo-[[PB:.*]]
 ; CHECK: .quad 8595522607861216050
-; CHECK-LABEL: ___i386_on_x86_64_thunk32_foo:
+; CHECK-LABEL: ___i386_on_x86_64_thunk_foo:
 ; CHECK:         movl %edi, %edi
 ; CHECK-NEXT:    callq [[PB]]
 ; CHECK:       [[PB]]:
 ; CHECK-NEXT:    popl %eax
-; CHECK:         pushq [[FOO_P:[^-]*]]-[[PB]](%eax)
+; CHECK:         pushq %rax
+; CHECK-NEXT:    leal [[FOO64:[^-]*]]-[[PB]](%eax), %eax
+; CHECK-NEXT:    movl %eax, -8(%esp)
+; CHECK-NEXT:    popq %rax
 ; CHECK-NEXT:    movl L___i386_on_x86_64_cs64$non_lazy_ptr-[[PB]](%eax), %eax
 ; CHECK-NEXT:    movw (%eax), %ax
-; CHECK-NEXT:    addl $4, %esp
-; CHECK-NEXT:    movw %ax, -4(%esp)
-; CHECK-NEXT:    lcalll *(%esp)
+; CHECK-NEXT:    movw %ax, -8(%esp)
+; CHECK-NEXT:    lcalll *-12(%esp)
 ; CHECK-NEXT:    retq
-
-; Check that thunks *aren't* generated if we already defined them in inline
-; assembly.
-; CHECK-NOT: ___i386_on_x86_64_thunk64_bar:
+; CHECK:       [[FOO64]]:
+; CHECK:         callq _foo
+; CHECK-NEXT:    lretl
 
 ; CHECK: .p2align 5, 0x90
 ; CHECK: .quad _bar-[[PB:.*]]
 ; CHECK: .quad 8595522607861216050
-; CHECK-LABEL: ___i386_on_x86_64_thunk32_bar:
+; CHECK-LABEL: ___i386_on_x86_64_thunk_bar:
 ; CHECK:         movl %edi, %edi
 ; CHECK-NEXT:    callq [[PB]]
 ; CHECK:       [[PB]]:
 ; CHECK-NEXT:    popl %eax
-; CHECK:         pushq [[BAR_P:[^-]*]]-[[PB]](%eax)
+; CHECK:         pushq %rax
+; CHECK-NEXT:    leal [[BAR64:[^-]*]]-[[PB]](%eax), %eax
+; CHECK-NEXT:    movl %eax, -8(%esp)
+; CHECK-NEXT:    popq %rax
 ; CHECK-NEXT:    movl L___i386_on_x86_64_cs64$non_lazy_ptr-[[PB]](%eax), %eax
 ; CHECK-NEXT:    movw (%eax), %ax
-; CHECK-NEXT:    addl $4, %esp
-; CHECK-NEXT:    movw %ax, -4(%esp)
-; CHECK-NEXT:    lcalll *(%esp)
+; CHECK-NEXT:    movw %ax, -8(%esp)
+; CHECK-NEXT:    lcalll *-12(%esp)
 ; CHECK-NEXT:    retq $16
-
-; CHECK-LABEL: ___i386_on_x86_64_thunk64_baz:
-; CHECK:         callq _baz
+; CHECK:       [[BAR64]]:
+; CHECK:         callq _bar
 ; CHECK-NEXT:    lretl
 
-; CHECK-NOT: ___i386_on_x86_64_thunk32_baz:
-
-; CHECK-LABEL: ___wine32_thunk64_quux:
-; CHECK:         callq _quux
-; CHECK-NEXT:    lretl
+; Check that thunks *aren't* generated if we already defined them in inline
+; assembly.
+; CHECK-NOT: ___i386_on_x86_64_thunk_baz:
 
 ; CHECK: .p2align 5, 0x90
 ; CHECK: .quad _quux-[[PB:.*]]
 ; CHECK: .quad 8595522607861216050
-; CHECK-LABEL: ___wine32_thunk32_quux:
+; CHECK-LABEL: ___wine32_thunk_quux:
 ; CHECK:         movl %edi, %edi
 ; CHECK-NEXT:    callq [[PB]]
 ; CHECK:       [[PB]]:
 ; CHECK-NEXT:    popl %eax
-; CHECK:         pushq [[QUUX_P:[^-]*]]-[[PB]](%eax)
+; CHECK:         pushq %rax
+; CHECK-NEXT:    leal [[QUUX64:[^-]*]]-[[PB]](%eax), %eax
+; CHECK-NEXT:    movl %eax, -8(%esp)
+; CHECK-NEXT:    popq %rax
 ; CHECK-NEXT:    movl L___wine32_cs64$non_lazy_ptr-[[PB]](%eax), %eax
 ; CHECK-NEXT:    movw (%eax), %ax
-; CHECK-NEXT:    addl $4, %esp
-; CHECK-NEXT:    movw %ax, -4(%esp)
-; CHECK-NEXT:    lcalll *(%esp)
+; CHECK-NEXT:    movw %ax, -8(%esp)
+; CHECK-NEXT:    lcalll *-12(%esp)
 ; CHECK-NEXT:    retq $12
-
-; CHECK: [[FOO_P]]:
-; CHECK-NEXT: .quad ___i386_on_x86_64_thunk64_foo
-; CHECK: [[BAR_P]]:
-; CHECK-NEXT: .quad ___i386_on_x86_64_thunk64_bar
-; CHECK: [[QUUX_P]]:
-; CHECK-NEXT: .quad ___wine32_thunk64_quux
+; CHECK:       [[QUUX64]]:
+; CHECK:         callq _quux
+; CHECK-NEXT:    lretl
 
 attributes #1 = { "thunk-prefix"="__wine32_" "thunk-cs64-name"="__wine32_cs64" }

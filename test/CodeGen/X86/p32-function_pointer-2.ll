@@ -17,14 +17,14 @@ entry:
   tail call x86_64_c32cc addrspace(32) void %foo(%baz addrspace(32)* thunkdata %td, i8 addrspace(32)* %h) nounwind
 ; CHECK-LABEL: _bar:
 ; CHECK: movq	%rsi, 8(%eax)
-; CHECK: callq	___i386_on_x86_64_invoke32_64_0
+; CHECK: callq	___i386_on_x86_64_invoke32_0
   tail call x86_64_c32cc addrspace(32) void %foo(%baz addrspace(32)* thunkdata %td, i8 addrspace(32)* %h) nounwind
 ; CHECK: movq	%rsi, 8(%eax)
-; CHECK: callq	___i386_on_x86_64_invoke32_64_0
+; CHECK: callq	___i386_on_x86_64_invoke32_0
   ret void
 }
 
-; CHECK-LABEL: ___i386_on_x86_64_invoke32_64_0:
+; CHECK-LABEL: ___i386_on_x86_64_invoke32_0:
 ; CHECK: movq ___i386_on_x86_64_cs64@GOTPCREL(%rip), %r9
 ; CHECK-NEXT: cmpw (%r9), %r8w
 ; CHECK: movq ___i386_on_x86_64_cs32@GOTPCREL(%rip), %r9
