@@ -203,7 +203,9 @@ void X866432InteropThunkInserter::generateThunk32Side(
   new UnreachableInst(M.getContext(), BB);
 
   // Mark this function as one we need to generate prefix data for.
-  ThunkFn->addFnAttr("thunk-32bit-side");
+  Mangled.clear();
+  Mang.getNameWithPrefix(Mangled, Fn.getName(), M.getDataLayout());
+  ThunkFn->addFnAttr("thunk-32bit-side", Mangled);
 
   // Get a global variable to hold the address of the 64-bit thunk.
   auto *GV = new GlobalVariable(M, Thunk64.getType(), true,
@@ -391,28 +393,16 @@ Function *X866432InteropThunkInserter::getOrInsertFarCallHelper(
 
   // Now we can prepare the 64-bit call. Get the address of the actual
   // function. To do *that*, first we need to get the address of the 64-bit
-  // side of the thunk. Exactly 10 bytes into the thunk is the offset of the
-  // pointer from the thunk's PIC base, which is itself 7 bytes in. We should
-  // be able to get the full address with one LEA.
+  // side of the thunk. Exactly 16 bytes prior is the offset of the target
+  // function from the PIC base of the thunk. We should be able to get the full
+  // address with one LEA.
   addRegOffset(BuildMI(Call64MBB, DebugLoc(), TII->get(X86::MOV32rm), X86::EAX),
-               X86::R8D, /*isKill=*/false, 10);
+               X86::R8D, /*isKill=*/false, -16);
   BuildMI(Call64MBB, DebugLoc(), TII->get(X86::LEA64_32r), X86::R8D)
       .addReg(X86::R8D, getKillRegState(true))
       .addImm(1)
       .addReg(X86::EAX)
       .addImm(7)
-      .addReg(0);
-
-  // Now, the RIP-relative offset to the actual function is precisely one
-  // byte into the 64-bit side. Note that this offset is from the instruction
-  // *following* the call--hence the '5'.
-  addRegOffset(BuildMI(Call64MBB, DebugLoc(), TII->get(X86::MOV32rm), X86::EAX),
-               X86::R8D, /*isKill=*/false, 1);
-  BuildMI(Call64MBB, DebugLoc(), TII->get(X86::LEA64_32r), X86::R8D)
-      .addReg(X86::R8D, getKillRegState(true))
-      .addImm(1)
-      .addReg(X86::EAX)
-      .addImm(5)
       .addReg(0);
 
   // The target address is now in R8.

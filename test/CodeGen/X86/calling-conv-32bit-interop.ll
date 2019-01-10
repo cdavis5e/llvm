@@ -153,11 +153,11 @@ module asm "___i386_on_x86_64_thunk32_baz:
 ; extra goop is to ensure that the magic number directly abuts the thunk, and
 ; that the thunk and the magic number are on the same page.
 ; CHECK: .p2align 5, 0x90
-; CHECK: .space 8,144
+; CHECK: .quad _foo-[[PB:.*]]
 ; CHECK: .quad 8595522607861216050
 ; CHECK-LABEL: ___i386_on_x86_64_thunk32_foo:
 ; CHECK:         movl %edi, %edi
-; CHECK-NEXT:    callq [[PB:.*]]
+; CHECK-NEXT:    callq [[PB]]
 ; CHECK:       [[PB]]:
 ; CHECK-NEXT:    popl %eax
 ; CHECK:         pushq [[FOO_P:[^-]*]]-[[PB]](%eax)
@@ -173,11 +173,11 @@ module asm "___i386_on_x86_64_thunk32_baz:
 ; CHECK-NOT: ___i386_on_x86_64_thunk64_bar:
 
 ; CHECK: .p2align 5, 0x90
-; CHECK: .space 8,144
+; CHECK: .quad _bar-[[PB:.*]]
 ; CHECK: .quad 8595522607861216050
 ; CHECK-LABEL: ___i386_on_x86_64_thunk32_bar:
 ; CHECK:         movl %edi, %edi
-; CHECK-NEXT:    callq [[PB:.*]]
+; CHECK-NEXT:    callq [[PB]]
 ; CHECK:       [[PB]]:
 ; CHECK-NEXT:    popl %eax
 ; CHECK:         pushq [[BAR_P:[^-]*]]-[[PB]](%eax)
@@ -199,11 +199,11 @@ module asm "___i386_on_x86_64_thunk32_baz:
 ; CHECK-NEXT:    lretl
 
 ; CHECK: .p2align 5, 0x90
-; CHECK: .space 8,144
+; CHECK: .quad _quux-[[PB:.*]]
 ; CHECK: .quad 8595522607861216050
 ; CHECK-LABEL: ___wine32_thunk32_quux:
 ; CHECK:         movl %edi, %edi
-; CHECK-NEXT:    callq [[PB:.*]]
+; CHECK-NEXT:    callq [[PB]]
 ; CHECK:       [[PB]]:
 ; CHECK-NEXT:    popl %eax
 ; CHECK:         pushq [[QUUX_P:[^-]*]]-[[PB]](%eax)

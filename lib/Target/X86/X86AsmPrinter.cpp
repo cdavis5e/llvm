@@ -115,12 +115,21 @@ void X86AsmPrinter::EmitConstantPool() {
       // Align this magic number to twice the function's alignment so the thunk
       // and the magic number should wind up on the same page. This should
       // prevent a spurious page fault.
-      unsigned Align = 1 << MF->getAlignment();
+      unsigned Align = std::min(1 << MF->getAlignment(), 16);
       OutStreamer->EmitValueToAlignment(2 * Align, 0x90 /* nop */);
-      // Pad the output up to eight bytes before the thunk starts. We want
+      // Pad the output up to sixteen bytes before the thunk starts. We want
       // the magic number to directly abut the thunk, since that's how callers
       // will find it.
-      OutStreamer->emitFill(Align - 8, 0x90);
+      if (Align > 16)
+        OutStreamer->emitFill(Align - 16, 0x90);
+      // Emit the offset from the PIC base to the start of the target function.
+      const MCSymbol *TargetSym = OutContext.getOrCreateSymbol(
+          Fn.getFnAttribute("thunk-32bit-side").getValueAsString());
+      const MCExpr *Offset = MCBinaryExpr::createSub(
+          MCSymbolRefExpr::create(TargetSym, OutContext),
+          MCSymbolRefExpr::create(MF->getPICBaseSymbol(), OutContext),
+          OutContext);
+      OutStreamer->EmitValue(Offset, 8);
       // We need to emit a magic number that is unmistakably *not* executable
       // code. ASCII is usually hard to mistake for x86 machine code.
       OutStreamer->EmitIntValue(0x77496e4554683332 /* 'wInETh32' */, 8);
