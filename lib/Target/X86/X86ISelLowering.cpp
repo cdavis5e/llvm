@@ -308,6 +308,11 @@ X86TargetLowering::X86TargetLowering(const X86TargetMachine &TM,
   } else if (!Subtarget.is64Bit())
     setOperationAction(ISD::BITCAST      , MVT::i64  , Custom);
 
+  if (Subtarget.isTarget64BitWine32()) {
+    setOperationAction(ISD::ADDRSPACECAST, MVT::i32, Custom);
+    setOperationAction(ISD::ADDRSPACECAST, MVT::i64, Custom);
+  }
+
   // Scalar integer divide and remainder are lowered to use operations that
   // produce two results, to match the available instructions. This exposes
   // the two-result form to trivial CSE, which is able to combine x/y and x%y
@@ -2219,6 +2224,8 @@ bool X86TargetLowering::isNoopAddrSpaceCast(unsigned SrcAS,
                                             unsigned DestAS) const {
   assert(SrcAS != DestAS && "Expected different address spaces!");
 
+  if (Subtarget.isTarget64BitWine32() && (SrcAS == 32 || DestAS == 32))
+    return false;
   return SrcAS < 256 && DestAS < 256;
 }
 
@@ -17920,6 +17927,29 @@ SDValue X86TargetLowering::LowerTRUNCATE(SDValue Op, SelectionDAG &DAG) const {
                      DAG.getIntPtrConstant(0, DL));
 }
 
+SDValue
+X86TargetLowering::LowerADDRSPACECAST(SDValue Op, SelectionDAG &DAG) const {
+  SDLoc SL(Op);
+  const AddrSpaceCastSDNode *ASC = cast<AddrSpaceCastSDNode>(Op);
+
+  // Casts to the 32-bit space require truncation.
+  if (ASC->getSrcAddressSpace() != 32 && ASC->getDestAddressSpace() == 32)
+    return DAG.getNode(ISD::TRUNCATE, SL, Op.getValueType(),
+                       ASC->getOperand(0));
+  // Casts from the 32-bit space require extension.
+  else if (ASC->getSrcAddressSpace() == 32 && ASC->getDestAddressSpace() != 32)
+    return DAG.getNode(ISD::ZERO_EXTEND, SL, Op.getValueType(),
+                       ASC->getOperand(0));
+
+  // All other addrspacecasts are noops.
+  const MachineFunction &MF = DAG.getMachineFunction();
+  DiagnosticInfoUnsupported InvalidAddrSpaceCast(
+    MF.getFunction(), "invalid addrspacecast", SL.getDebugLoc());
+  DAG.getContext()->diagnose(InvalidAddrSpaceCast);
+
+  return DAG.getUNDEF(ASC->getValueType(0));
+}
+
 SDValue X86TargetLowering::LowerFP_TO_INT(SDValue Op, SelectionDAG &DAG) const {
   bool IsSigned = Op.getOpcode() == ISD::FP_TO_SINT;
   MVT VT = Op.getSimpleValueType();
@@ -25961,6 +25991,7 @@ SDValue X86TargetLowering::LowerOperation(SDValue Op, SelectionDAG &DAG) const {
   case ISD::FP_TO_SINT:
   case ISD::FP_TO_UINT:         return LowerFP_TO_INT(Op, DAG);
   case ISD::FP_EXTEND:          return LowerFP_EXTEND(Op, DAG);
+  case ISD::ADDRSPACECAST:      return LowerADDRSPACECAST(Op, DAG);
   case ISD::LOAD:               return LowerLoad(Op, Subtarget, DAG);
   case ISD::STORE:              return LowerStore(Op, Subtarget, DAG);
   case ISD::FABS:
