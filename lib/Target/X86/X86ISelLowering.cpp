@@ -2934,7 +2934,7 @@ X86TargetLowering::LowerMemArgument(SDValue Chain, CallingConv::ID CallConv,
       CallConv, DAG.getTarget().Options.GuaranteedTailCallOpt);
   bool isImmutable = !AlwaysUseMutable && !Flags.isByVal();
   EVT ValVT;
-  MVT PtrVT = getPointerTy(DAG.getDataLayout());
+  MVT PtrVT = getFrameIndexTy(DAG.getDataLayout());
 
   // If value is passed by pointer we have address passed instead of the value
   // itself. No need to extend if the mask value and location share the same
@@ -3357,10 +3357,9 @@ SDValue X86TargetLowering::LowerFormalArguments(
 
     // Store the integer parameter registers.
     SmallVector<SDValue, 8> MemOps;
-    SDValue RSFIN = DAG.getFrameIndex(FuncInfo->getRegSaveFrameIndex(),
-                                      getPointerTy(DAG.getDataLayout()));
-    unsigned Offset = FuncInfo->getVarArgsGPOffset();
     EVT FIVT = getFrameIndexTy(DAG.getDataLayout());
+    SDValue RSFIN = DAG.getFrameIndex(FuncInfo->getRegSaveFrameIndex(), FIVT);
+    unsigned Offset = FuncInfo->getVarArgsGPOffset();
     for (SDValue Val : LiveGPRs) {
       SDValue FIN = DAG.getNode(ISD::ADD, dl, FIVT, RSFIN,
                                 DAG.getConstant(Offset, dl, FIVT));
@@ -3762,7 +3761,7 @@ X86TargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
             Flags.getByValSize(), std::max(16, (int)Flags.getByValAlign()),
             false);
         SDValue StackSlot =
-            DAG.getFrameIndex(FrameIdx, getPointerTy(DAG.getDataLayout()));
+            DAG.getFrameIndex(FrameIdx, getFrameIndexTy(DAG.getDataLayout()));
         Chain =
             CreateCopyOfByValArgument(Arg, StackSlot, Chain, Flags, DAG, dl);
         // From now on treat this as a regular pointer
@@ -3913,7 +3912,7 @@ X86TargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
       int32_t Offset = VA.getLocMemOffset()+FPDiff;
       uint32_t OpSize = (VA.getLocVT().getSizeInBits()+7)/8;
       FI = MF.getFrameInfo().CreateFixedObject(OpSize, Offset, true);
-      FIN = DAG.getFrameIndex(FI, getPointerTy(DAG.getDataLayout()));
+      FIN = DAG.getFrameIndex(FI, getFrameIndexTy(DAG.getDataLayout()));
 
       if (Flags.isByVal()) {
         // Copy relative to framepointer.
@@ -3940,7 +3939,7 @@ X86TargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
 
     // Store the return address to the appropriate stack slot.
     Chain = EmitTailCallStoreRetAddr(DAG, MF, Chain, RetAddrFrIdx,
-                                     getPointerTy(DAG.getDataLayout()),
+                                     getFrameIndexTy(DAG.getDataLayout()),
                                      RegInfo->getSlotSize(), FPDiff, dl);
   }
 
@@ -4590,7 +4589,8 @@ SDValue X86TargetLowering::getReturnAddressFrameIndex(SelectionDAG &DAG) const {
     FuncInfo->setRAIndex(ReturnAddrIndex);
   }
 
-  return DAG.getFrameIndex(ReturnAddrIndex, getPointerTy(DAG.getDataLayout()));
+  return DAG.getFrameIndex(
+      ReturnAddrIndex, getFrameIndexTy(DAG.getDataLayout()));
 }
 
 bool X86::isOffsetSuitableForCodeModel(int64_t Offset, CodeModel::Model M,
@@ -16879,7 +16879,7 @@ SDValue X86TargetLowering::LowerSINT_TO_FP(SDValue Op,
 
   unsigned Size = SrcVT.getSizeInBits()/8;
   MachineFunction &MF = DAG.getMachineFunction();
-  auto PtrVT = getPointerTy(MF.getDataLayout());
+  auto PtrVT = getFrameIndexTy(MF.getDataLayout());
   int SSFI = MF.getFrameInfo().CreateStackObject(Size, Size, false);
   SDValue StackSlot = DAG.getFrameIndex(SSFI, PtrVT);
   SDValue Chain = DAG.getStore(
@@ -16928,7 +16928,7 @@ SDValue X86TargetLowering::BuildFILD(SDValue Op, EVT SrcVT, SDValue Chain,
     MachineFunction &MF = DAG.getMachineFunction();
     unsigned SSFISize = Op.getValueSizeInBits()/8;
     int SSFI = MF.getFrameInfo().CreateStackObject(SSFISize, SSFISize, false);
-    auto PtrVT = getPointerTy(MF.getDataLayout());
+    auto PtrVT = getFrameIndexTy(MF.getDataLayout());
     SDValue StackSlot = DAG.getFrameIndex(SSFI, PtrVT);
     Tys = DAG.getVTList(MVT::Other);
     SDValue Ops[] = {
@@ -17311,7 +17311,7 @@ X86TargetLowering::FP_TO_INTHelper(SDValue Op, SelectionDAG &DAG,
 
   EVT DstTy = Op.getValueType();
   EVT TheVT = Op.getOperand(0).getValueType();
-  auto PtrVT = getPointerTy(DAG.getDataLayout());
+  auto PtrVT = getFrameIndexTy(DAG.getDataLayout());
 
   if (TheVT != MVT::f32 && TheVT != MVT::f64 && TheVT != MVT::f80) {
     // f16 must be promoted before using the lowering in this routine.
@@ -20632,7 +20632,7 @@ X86TargetLowering::LowerDYNAMIC_STACKALLOC(SDValue Op,
 
 SDValue X86TargetLowering::LowerVASTART(SDValue Op, SelectionDAG &DAG) const {
   MachineFunction &MF = DAG.getMachineFunction();
-  auto PtrVT = getPointerTy(MF.getDataLayout());
+  auto PtrVT = getFrameIndexTy(MF.getDataLayout());
   X86MachineFunctionInfo *FuncInfo = MF.getInfo<X86MachineFunctionInfo>();
 
   const Value *SV = cast<SrcValueSDNode>(Op.getOperand(2))->getValue();
@@ -20654,6 +20654,12 @@ SDValue X86TargetLowering::LowerVASTART(SDValue Op, SelectionDAG &DAG) const {
   //   reg_save_area
   SmallVector<SDValue, 8> MemOps;
   SDValue FIN = Op.getOperand(1);
+  EVT FIVT = getFrameIndexTy(DAG.getDataLayout());
+  if (FIN.getValueType() != FIVT)
+    // If the pointer and frame index types don't match, we must convert.
+    FIN = DAG.getNode(
+        FIN.getValueType().getSizeInBits() > FIVT.getSizeInBits()
+            ? ISD::TRUNCATE : ISD::ZERO_EXTEND, DL, FIVT, FIN);
   // Store gp_offset
   SDValue Store = DAG.getStore(
       Op.getOperand(0), DL,
@@ -20670,7 +20676,6 @@ SDValue X86TargetLowering::LowerVASTART(SDValue Op, SelectionDAG &DAG) const {
   MemOps.push_back(Store);
 
   // Store ptr to overflow_arg_area
-  EVT FIVT = getFrameIndexTy(DAG.getDataLayout());
   FIN = DAG.getNode(ISD::ADD, DL, FIVT, FIN, DAG.getConstant(4, DL, FIVT));
   SDValue OVFIN = DAG.getFrameIndex(FuncInfo->getVarArgsFrameIndex(), PtrVT);
   Store =
@@ -22797,7 +22802,7 @@ SDValue X86TargetLowering::LowerFLT_ROUNDS_(SDValue Op,
   // Save FP Control Word to stack slot
   int SSFI = MF.getFrameInfo().CreateStackObject(2, StackAlignment, false);
   SDValue StackSlot =
-      DAG.getFrameIndex(SSFI, getPointerTy(DAG.getDataLayout()));
+      DAG.getFrameIndex(SSFI, getFrameIndexTy(DAG.getDataLayout()));
 
   MachineMemOperand *MMO =
       MF.getMachineMemOperand(MachinePointerInfo::getFixedStack(MF, SSFI),
