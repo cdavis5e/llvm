@@ -155,16 +155,18 @@ module asm "___i386_on_x86_64_thunk_baz:
 ; CHECK:       [[PB]]:
 ; CHECK-NEXT:    popl %eax
 ; CHECK:         pushq %rax
+; CHECK-NEXT:    pushq %rax
 ; CHECK-NEXT:    leal [[FOO64:[^-]*]]-[[PB]](%eax), %eax
-; CHECK-NEXT:    movl %eax, -8(%esp)
-; CHECK-NEXT:    popq %rax
+; CHECK-NEXT:    xchgl %eax, (%esp)
 ; CHECK-NEXT:    movl L___i386_on_x86_64_cs64$non_lazy_ptr-[[PB]](%eax), %eax
 ; CHECK-NEXT:    movw (%eax), %ax
-; CHECK-NEXT:    movw %ax, -8(%esp)
-; CHECK-NEXT:    lcalll *-12(%esp)
+; CHECK-NEXT:    movw %ax, 4(%esp)
+; CHECK-NEXT:    lcalll *(%esp)
 ; CHECK-NEXT:    retq
 ; CHECK:       [[FOO64]]:
-; CHECK:         callq _foo
+; CHECK:         popq %rax
+; CHECK-NEXT:    movq %rax, (%esp)
+; CHECK-NEXT:    callq _foo
 ; CHECK-NEXT:    lretl
 
 ; CHECK: .p2align 5, 0x90
@@ -176,16 +178,18 @@ module asm "___i386_on_x86_64_thunk_baz:
 ; CHECK:       [[PB]]:
 ; CHECK-NEXT:    popl %eax
 ; CHECK:         pushq %rax
+; CHECK-NEXT:    pushq %rax
 ; CHECK-NEXT:    leal [[BAR64:[^-]*]]-[[PB]](%eax), %eax
-; CHECK-NEXT:    movl %eax, -8(%esp)
-; CHECK-NEXT:    popq %rax
+; CHECK-NEXT:    xchgl %eax, (%esp)
 ; CHECK-NEXT:    movl L___i386_on_x86_64_cs64$non_lazy_ptr-[[PB]](%eax), %eax
 ; CHECK-NEXT:    movw (%eax), %ax
-; CHECK-NEXT:    movw %ax, -8(%esp)
-; CHECK-NEXT:    lcalll *-12(%esp)
+; CHECK-NEXT:    movw %ax, 4(%esp)
+; CHECK-NEXT:    lcalll *(%esp)
 ; CHECK-NEXT:    retq $16
 ; CHECK:       [[BAR64]]:
-; CHECK:         callq _bar
+; CHECK:         popq %rax
+; CHECK-NEXT:    movq %rax, (%esp)
+; CHECK-NEXT:    callq _bar
 ; CHECK-NEXT:    lretl
 
 ; Check that thunks *aren't* generated if we already defined them in inline
@@ -201,16 +205,18 @@ module asm "___i386_on_x86_64_thunk_baz:
 ; CHECK:       [[PB]]:
 ; CHECK-NEXT:    popl %eax
 ; CHECK:         pushq %rax
+; CHECK-NEXT:    pushq %rax
 ; CHECK-NEXT:    leal [[QUUX64:[^-]*]]-[[PB]](%eax), %eax
-; CHECK-NEXT:    movl %eax, -8(%esp)
-; CHECK-NEXT:    popq %rax
+; CHECK-NEXT:    xchgl %eax, (%esp)
 ; CHECK-NEXT:    movl L___wine32_cs64$non_lazy_ptr-[[PB]](%eax), %eax
 ; CHECK-NEXT:    movw (%eax), %ax
-; CHECK-NEXT:    movw %ax, -8(%esp)
-; CHECK-NEXT:    lcalll *-12(%esp)
+; CHECK-NEXT:    movw %ax, 4(%esp)
+; CHECK-NEXT:    lcalll *(%esp)
 ; CHECK-NEXT:    retq $12
 ; CHECK:       [[QUUX64]]:
-; CHECK:         callq _quux
+; CHECK:         popq %rax
+; CHECK-NEXT:    movq %rax, (%esp)
+; CHECK-NEXT:    callq _quux
 ; CHECK-NEXT:    lretl
 
 attributes #1 = { "thunk-prefix"="__wine32_" "thunk-cs64-name"="__wine32_cs64" }

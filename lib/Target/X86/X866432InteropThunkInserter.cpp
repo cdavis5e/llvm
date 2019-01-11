@@ -189,6 +189,10 @@ void X866432InteropThunkInserter::generateThunk32Side(
   // Move the offset part of the far pointer onto the stack. This is tricky
   // because we need to LEA the block address, but we only have one register.
   // The only place we have to save the PIC base is in the stack.
+  // While we're at it, reserve the stack space we're using so that the OS
+  // doesn't accidentally overwrite it. We'll release it when we get to the
+  // other side of the thunk.
+  BuildMI(MBB, DebugLoc(), TII->get(X86::PUSH64r)).addReg(X86::RAX);
   BuildMI(MBB, DebugLoc(), TII->get(X86::PUSH64r)).addReg(X86::RAX);
   BuildMI(MBB, DebugLoc(), TII->get(X86::LEA64_32r), X86::EAX)
       .addReg(X86::EAX)  // Base
@@ -197,12 +201,10 @@ void X866432InteropThunkInserter::generateThunk32Side(
                          // Displacement
       .addBlockAddress(BlockAddress::get(BB), 0, X86II::MO_PIC_BASE_OFFSET)
       .addReg(0);
-  addRegOffset(BuildMI(MBB, DebugLoc(), TII->get(X86::MOV32mr)),
-               X86::ESP, /*isKill=*/false, -8)
-      .addReg(X86::EAX);
-
-  // Now get the PIC base back so we can use it again.
-  BuildMI(MBB, DebugLoc(), TII->get(X86::POP64r), X86::RAX);
+  // Use an XCHG here. This will give us the PIC base back.
+  addRegOffset(BuildMI(MBB, DebugLoc(), TII->get(X86::XCHG32rm), X86::EAX)
+                   .addReg(X86::EAX),
+               X86::ESP, /*isKill=*/false, 0);
 
   // Get the segment part of the far pointer.
   // Since this global might be defined in another image, we have to use a
@@ -221,12 +223,12 @@ void X866432InteropThunkInserter::generateThunk32Side(
 
   // Move the segment selector onto the stack.
   addRegOffset(BuildMI(MBB, DebugLoc(), TII->get(X86::MOV16mr)),
-               X86::ESP, /*isKill=*/false, -8)
+               X86::ESP, /*isKill=*/false, 4)
       .addReg(X86::AX, getKillRegState(true));
 
   // Call the function.
   addRegOffset(BuildMI(MBB, DebugLoc(), TII->get(X86::FARCALL32m)),
-               X86::ESP, /*isKill=*/false, -12);
+               X86::ESP, /*isKill=*/false, 0);
 
   // If this is a cdecl thunk, we can just return now.
   if (CC == CallingConv::X86_64_C32) {
@@ -270,6 +272,11 @@ void X866432InteropThunkInserter::generateThunk32Side(
   }
 
   // Now for the 64-bit side of the thunk.
+  // We need to move the far return address over the far target address.
+  BuildMI(MBB64, DebugLoc(), TII->get(X86::POP64r), X86::RAX);
+  addRegOffset(BuildMI(MBB64, DebugLoc(), TII->get(X86::MOV64mr)),
+               X86::ESP, /*isKill=*/false, 0)
+      .addReg(X86::RAX);
   // Do the call.
   BuildMI(MBB64, DebugLoc(), TII->get(X86::CALL64pcrel32))
       .addGlobalAddress(&Fn);
@@ -481,11 +488,14 @@ Function *X866432InteropThunkInserter::getOrInsertFarCallHelper(
   BuildMI(Call32MBB, DebugLoc(), TII->get(X86::MOV32rr), X86::ESI)
       .addReg(X86::ESP);
   // Put the target far address onto the stack.
+  BuildMI(Call32MBB, DebugLoc(), TII->get(X86::SUB32ri8), X86::ESP)
+      .addReg(X86::ESP)
+      .addImm(8);
   addRegOffset(BuildMI(Call32MBB, DebugLoc(), TII->get(X86::MOV32mr)),
-               X86::ESP, /*isKill=*/false, -4)
+               X86::ESP, /*isKill=*/false, 0)
       .addReg(X86::R8D);
   addRegOffset(BuildMI(Call32MBB, DebugLoc(), TII->get(X86::MOV16mr)),
-               X86::ESP, /*isKill=*/false, 0)
+               X86::ESP, /*isKill=*/false, 4)
       .addReg(X86::R9W);
 
   // Make the call.
@@ -520,6 +530,10 @@ Function *X866432InteropThunkInserter::getOrInsertFarCallHelper(
                X86::EBX, /*isKill=*/false, 0);
   addRegOffset(BuildMI(MBB32, DebugLoc(), TII->get(X86::POP64rmm)),
                X86::EBX, /*isKill=*/false, 4);
+  // Remove the target address from the stack.
+  BuildMI(MBB32, DebugLoc(), TII->get(X86::ADD32ri8), X86::ESP)
+      .addReg(X86::ESP)
+      .addImm(8);
 
   // Now we're ready to near-call the target function.
   addRegOffset(BuildMI(MBB32, DebugLoc(), TII->get(X86::CALL64m)),
