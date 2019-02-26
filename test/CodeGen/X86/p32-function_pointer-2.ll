@@ -18,9 +18,9 @@ entry:
 ; CHECK-LABEL: _bar:
 ; CHECK: movq	%rsi, 8(%eax)
 ; CHECK: callq	___i386_on_x86_64_invoke32_0
-  tail call x86_64_c32cc addrspace(32) void %foo(%baz addrspace(32)* thunkdata %td, i8 addrspace(32)* %h) nounwind
-; CHECK: movq	%rsi, 8(%eax)
-; CHECK: callq	___i386_on_x86_64_invoke32_0
+  tail call addrspace(32) void %foo(%baz addrspace(32)* thunkdata %td, i8 addrspace(32)* %h) nounwind
+; CHECK: movl	%esi, %eax
+; CHECK: jmpq	*%rax
   ret void
 }
 

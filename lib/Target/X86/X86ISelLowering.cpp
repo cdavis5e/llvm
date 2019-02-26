@@ -3582,7 +3582,7 @@ X86TargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
   const Module *M = MF.getMMI().getModule();
   Metadata *IsCFProtectionSupported = M->getModuleFlag("cf-protection-branch");
   bool IsFarCall32 = Is64Bit && Subtarget.isTarget64BitWine32() &&
-                     Callee.getSimpleValueType() == MVT::i32;
+                     Callee.getSimpleValueType() == MVT::i32 && IsInterop6432;
 
   if (CallConv == CallingConv::X86_INTR)
     report_fatal_error("X86 interrupts may not be called directly");
