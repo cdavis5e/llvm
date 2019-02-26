@@ -67,11 +67,11 @@ entry:
 ; CHECK-NEXT: movw (%r9), %r9w
 ; Should really be 'popl', since this is 32-bit code, but we can't use that
 ; in 64-bit mode.
-; CHECK: popq (%ebx)
-; CHECK: popq 4(%ebx)
-; CHECK: callq *8(%ebx)
-; CHECK: pushq 4(%ebx)
-; CHECK: pushq (%ebx)
+; CHECK: popq (%rbx)
+; CHECK: popq 4(%rbx)
+; CHECK: callq *8(%rbx)
+; CHECK: pushq 4(%rbx)
+; CHECK: pushq (%rbx)
 ; CHECK: lretl
 ; CHECK-LABEL: __i386_on_x86_64_invoke32_12:
 ; CHECK: callq *%r8

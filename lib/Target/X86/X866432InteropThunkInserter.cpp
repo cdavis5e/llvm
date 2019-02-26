@@ -195,7 +195,7 @@ void X866432InteropThunkInserter::generateThunk32Side(
   BuildMI(MBB, DebugLoc(), TII->get(X86::PUSH64r)).addReg(X86::RAX);
   BuildMI(MBB, DebugLoc(), TII->get(X86::PUSH64r)).addReg(X86::RAX);
   BuildMI(MBB, DebugLoc(), TII->get(X86::LEA64_32r), X86::EAX)
-      .addReg(X86::EAX)  // Base
+      .addReg(X86::RAX)  // Base
       .addImm(1)         // Scale
       .addReg(0)         // Index
                          // Displacement
@@ -204,7 +204,7 @@ void X866432InteropThunkInserter::generateThunk32Side(
   // Use an XCHG here. This will give us the PIC base back.
   addRegOffset(BuildMI(MBB, DebugLoc(), TII->get(X86::XCHG32rm), X86::EAX)
                    .addReg(X86::EAX),
-               X86::ESP, /*isKill=*/false, 0);
+               X86::RSP, /*isKill=*/false, 0);
 
   // Get the segment part of the far pointer.
   // Since this global might be defined in another image, we have to use a
@@ -213,22 +213,22 @@ void X866432InteropThunkInserter::generateThunk32Side(
   unsigned OpFlag = STI->isTargetDarwin()
       ? X86II::MO_DARWIN_NONLAZY_PIC_BASE : X86II::MO_GOT;
   BuildMI(MBB, DebugLoc(), TII->get(X86::MOV32rm), X86::EAX)
-      .addReg(X86::EAX, getKillRegState(true))
+      .addReg(X86::RAX, getKillRegState(true))
       .addImm(1)
       .addReg(0)
       .addGlobalAddress(TargetCS, 0, OpFlag)
       .addReg(0);
   addRegOffset(BuildMI(MBB, DebugLoc(), TII->get(X86::MOV16rm), X86::AX),
-               X86::EAX, /*isKill=*/true, 0);
+               X86::RAX, /*isKill=*/true, 0);
 
   // Move the segment selector onto the stack.
   addRegOffset(BuildMI(MBB, DebugLoc(), TII->get(X86::MOV16mr)),
-               X86::ESP, /*isKill=*/false, 4)
+               X86::RSP, /*isKill=*/false, 4)
       .addReg(X86::AX, getKillRegState(true));
 
   // Call the function.
   addRegOffset(BuildMI(MBB, DebugLoc(), TII->get(X86::FARCALL32m)),
-               X86::ESP, /*isKill=*/false, 0);
+               X86::RSP, /*isKill=*/false, 0);
 
   // If this is a cdecl thunk, we can just return now.
   if (CC == CallingConv::X86_64_C32) {
@@ -527,25 +527,25 @@ Function *X866432InteropThunkInserter::getOrInsertFarCallHelper(
   // corresponding 32-bit instructions here. Don't worry; these will encode
   // the same as their 32-bit counterparts, so this should work.
   addRegOffset(BuildMI(MBB32, DebugLoc(), TII->get(X86::POP64rmm)),
-               X86::EBX, /*isKill=*/false, 0);
+               X86::RBX, /*isKill=*/false, 0);
   addRegOffset(BuildMI(MBB32, DebugLoc(), TII->get(X86::POP64rmm)),
-               X86::EBX, /*isKill=*/false, 4);
+               X86::RBX, /*isKill=*/false, 4);
   // Remove the target address from the stack.
-  BuildMI(MBB32, DebugLoc(), TII->get(X86::ADD32ri8), X86::ESP)
-      .addReg(X86::ESP)
+  BuildMI(MBB32, DebugLoc(), TII->get(X86::ADD32ri8), X86::RSP)
+      .addReg(X86::RSP)
       .addImm(8);
 
   // Now we're ready to near-call the target function.
   addRegOffset(BuildMI(MBB32, DebugLoc(), TII->get(X86::CALL64m)),
-               X86::EBX, /*isKill=*/false, 8);
+               X86::RBX, /*isKill=*/false, 8);
 
   // Restore the original far return address. Luckily for us, the 64-bit
   // side was kind enough to stash the thunk data pointer in the non-volatile
   // EBX register.
   addRegOffset(BuildMI(MBB32, DebugLoc(), TII->get(X86::PUSH64rmm)),
-               X86::EBX, /*isKill=*/false, 4);
+               X86::RBX, /*isKill=*/false, 4);
   addRegOffset(BuildMI(MBB32, DebugLoc(), TII->get(X86::PUSH64rmm)),
-               X86::EBX, /*isKill=*/false, 0);
+               X86::RBX, /*isKill=*/false, 0);
 
   // Now return.
   BuildMI(MBB32, DebugLoc(), TII->get(X86::LRETL));

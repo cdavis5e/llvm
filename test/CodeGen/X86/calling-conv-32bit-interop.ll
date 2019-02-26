@@ -156,12 +156,12 @@ module asm "___i386_on_x86_64_thunk_baz:
 ; CHECK-NEXT:    popl %eax
 ; CHECK:         pushq %rax
 ; CHECK-NEXT:    pushq %rax
-; CHECK-NEXT:    leal [[FOO64:[^-]*]]-[[PB]](%eax), %eax
-; CHECK-NEXT:    xchgl %eax, (%esp)
-; CHECK-NEXT:    movl L___i386_on_x86_64_cs64$non_lazy_ptr-[[PB]](%eax), %eax
-; CHECK-NEXT:    movw (%eax), %ax
-; CHECK-NEXT:    movw %ax, 4(%esp)
-; CHECK-NEXT:    lcalll *(%esp)
+; CHECK-NEXT:    leal [[FOO64:[^-]*]]-[[PB]](%rax), %eax
+; CHECK-NEXT:    xchgl %eax, (%rsp)
+; CHECK-NEXT:    movl L___i386_on_x86_64_cs64$non_lazy_ptr-[[PB]](%rax), %eax
+; CHECK-NEXT:    movw (%rax), %ax
+; CHECK-NEXT:    movw %ax, 4(%rsp)
+; CHECK-NEXT:    lcalll *(%rsp)
 ; CHECK-NEXT:    retq
 ; CHECK:       [[FOO64]]:
 ; CHECK:         popq %rax
@@ -179,12 +179,12 @@ module asm "___i386_on_x86_64_thunk_baz:
 ; CHECK-NEXT:    popl %eax
 ; CHECK:         pushq %rax
 ; CHECK-NEXT:    pushq %rax
-; CHECK-NEXT:    leal [[BAR64:[^-]*]]-[[PB]](%eax), %eax
-; CHECK-NEXT:    xchgl %eax, (%esp)
-; CHECK-NEXT:    movl L___i386_on_x86_64_cs64$non_lazy_ptr-[[PB]](%eax), %eax
-; CHECK-NEXT:    movw (%eax), %ax
-; CHECK-NEXT:    movw %ax, 4(%esp)
-; CHECK-NEXT:    lcalll *(%esp)
+; CHECK-NEXT:    leal [[BAR64:[^-]*]]-[[PB]](%rax), %eax
+; CHECK-NEXT:    xchgl %eax, (%rsp)
+; CHECK-NEXT:    movl L___i386_on_x86_64_cs64$non_lazy_ptr-[[PB]](%rax), %eax
+; CHECK-NEXT:    movw (%rax), %ax
+; CHECK-NEXT:    movw %ax, 4(%rsp)
+; CHECK-NEXT:    lcalll *(%rsp)
 ; CHECK-NEXT:    retq $16
 ; CHECK:       [[BAR64]]:
 ; CHECK:         popq %rax
@@ -206,12 +206,12 @@ module asm "___i386_on_x86_64_thunk_baz:
 ; CHECK-NEXT:    popl %eax
 ; CHECK:         pushq %rax
 ; CHECK-NEXT:    pushq %rax
-; CHECK-NEXT:    leal [[QUUX64:[^-]*]]-[[PB]](%eax), %eax
-; CHECK-NEXT:    xchgl %eax, (%esp)
-; CHECK-NEXT:    movl L___wine32_cs64$non_lazy_ptr-[[PB]](%eax), %eax
-; CHECK-NEXT:    movw (%eax), %ax
-; CHECK-NEXT:    movw %ax, 4(%esp)
-; CHECK-NEXT:    lcalll *(%esp)
+; CHECK-NEXT:    leal [[QUUX64:[^-]*]]-[[PB]](%rax), %eax
+; CHECK-NEXT:    xchgl %eax, (%rsp)
+; CHECK-NEXT:    movl L___wine32_cs64$non_lazy_ptr-[[PB]](%rax), %eax
+; CHECK-NEXT:    movw (%rax), %ax
+; CHECK-NEXT:    movw %ax, 4(%rsp)
+; CHECK-NEXT:    lcalll *(%rsp)
 ; CHECK-NEXT:    retq $12
 ; CHECK:       [[QUUX64]]:
 ; CHECK:         popq %rax

@@ -36,6 +36,6 @@ entry:
 ; CHECK-LABEL: __wine32_invoke32_0:
 ; CHECK: cmpw __wine32_cs64, %r8w
 ; CHECK: movw __wine32_cs32, %r9w
-; CHECK: callq *8(%ebx)
+; CHECK: callq *8(%rbx)
 
 attributes #1 = { nounwind "thunk-prefix"="__wine32_" "thunk-cs32-name"="__wine32_cs32" "thunk-cs64-name"="__wine32_cs64" }
