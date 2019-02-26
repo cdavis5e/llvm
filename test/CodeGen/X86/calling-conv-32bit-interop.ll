@@ -105,36 +105,42 @@ define void @call_baz() {
   ret void
 }
 
-define x86_thiscallcc i64 @quux(%struct.__thunk_data addrspace(32)* thunkdata %td, i32 inreg %a, i64 %b, i8 addrspace(32)* %c) #1 {
+%s = type { i64 }
+
+define x86_thiscallcc void @quux(%struct.__thunk_data addrspace(32)* thunkdata %td, %s addrspace(32)* sret %sret, i32 inreg %a, i64 %b, i8 addrspace(32)* %c) #1 {
 ; CHECK-LABEL: _quux:
+; CHECK: movl 20(%esp), %eax
   %1 = load i8, i8 addrspace(32)* %c
-; CHECK: movl 28(%esp), %eax
-; CHECK-NEXT: movl %eax, %eax
+; CHECK: movl 32(%esp), %edx
   %2 = zext i8 %1 to i32
-; CHECK-NEXT: movzbl (%rax), %eax
+; CHECK: movzbl (%{{[re]}}dx), %edx
   %3 = add i32 %2, %a
-; CHECK-NEXT: addl %ecx, %eax
+; CHECK-NEXT: addl %ecx, %edx
   %4 = sext i32 %3 to i64
-; CHECK-NEXT: cltq
+; CHECK-NEXT: movslq %edx, %rcx
   %5 = sub i64 %4, %b
-; CHECK-NEXT: subq 20(%esp), %rax
-  ret i64 %5
-; CHECK-NEXT: movq %rax, %rdx
-; CHECK-NEXT: shrq $32, %rdx
+; CHECK-NEXT: subq 24(%esp), %rcx
+  %6 = getelementptr inbounds %s, %s addrspace(32)* %sret, i32 0, i32 0
+  store i64 %5, i64 addrspace(32)* %6
+  ret void
+; CHECK-NEXT: movq %rcx, (%{{[re]}}ax)
 ; CHECK: retq{{$}}
 }
 
 define void @call_quux() {
 ; CHECK-LABEL: _call_quux:
   %td = alloca %struct.__thunk_data, align 8, addrspace(32)
-; CHECK: subl $56, %esp
-  %1 = call x86_thiscallcc i64 @quux(%struct.__thunk_data addrspace(32)* %td, i32 inreg 0, i64 0, i8 addrspace(32)* null)
+  %sr = alloca %s, align 8, addrspace(32)
+; CHECK: subl $72, %esp
+  call x86_thiscallcc void @quux(%struct.__thunk_data addrspace(32)* %td, %s addrspace(32)* sret %sr, i32 inreg 0, i64 0, i8 addrspace(32)* null)
+; CHECK: leal 40(%rsp), %ecx
+; CHECK: movl %ecx, 12(%{{rax|esp}})
 ; CHECK-DAG: xorl %ecx, %ecx
-; CHECK-DAG: movq $0, 12(%{{rax|esp}})
-; CHECK-DAG: movl $0, 20(%{{rax|esp}})
-; CHECK-DAG: leal 32(%rsp), %eax
+; CHECK-DAG: movq $0, 16(%{{rax|esp}})
+; CHECK-DAG: movl $0, 24(%{{rax|esp}})
+; CHECK-DAG: leal 48(%rsp), %eax
 ; CHECK: callq _quux
-; CHECK: addl $56, %esp
+; CHECK: addl $72, %esp
 ; CHECK: retq
   ret void
 }
@@ -212,7 +218,7 @@ module asm "___i386_on_x86_64_thunk_baz:
 ; CHECK-NEXT:    movw (%rax), %ax
 ; CHECK-NEXT:    movw %ax, 4(%rsp)
 ; CHECK-NEXT:    lcalll *(%rsp)
-; CHECK-NEXT:    retq $12
+; CHECK-NEXT:    retq $16
 ; CHECK:       [[QUUX64]]:
 ; CHECK:         popq %rax
 ; CHECK-NEXT:    movq %rax, (%esp)

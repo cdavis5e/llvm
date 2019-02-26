@@ -250,9 +250,11 @@ void X866432InteropThunkInserter::generateThunk32Side(
       Type *ParamTy = FnTy->getParamType(i);
       const DataLayout &DL = M.getDataLayout();
       // For fastcall, the first two integers that fit in 4 bytes are in ECX and
-      // EDX. For thiscall, only the first such argument is in ECX.
+      // EDX. For thiscall, only the first such argument is in ECX; further,
+      // sret arguments are always passed on the stack.
       if ((CC == CallingConv::X86_FastCall ||
-           CC == CallingConv::X86_ThisCall) &&
+           (CC == CallingConv::X86_ThisCall &&
+            !Fn.hasParamAttribute(i, Attribute::StructRet))) &&
           !FoundECX && ParamTy->isIntegerTy() &&
           DL.getTypeStoreSize(ParamTy) <= 4) {
         FoundECX = true;
