@@ -355,11 +355,14 @@ static Value *getStackGuard(const TargetLoweringBase *TLI, Module *M,
 /// Returns true if the platform/triple supports the stackprotectorcreate pseudo
 /// node.
 static bool CreatePrologue(Function *F, Module *M, ReturnInst *RI,
-                           const TargetLoweringBase *TLI, AllocaInst *&AI) {
+                           const TargetLoweringBase *TLI, Value *&AI) {
   bool SupportsSelectionDAGSP = false;
   IRBuilder<> B(&F->getEntryBlock().front());
   PointerType *PtrTy = Type::getInt8PtrTy(RI->getContext());
   AI = B.CreateAlloca(PtrTy, nullptr, "StackGuardSlot");
+  if (F->getParent()->getDataLayout().getAllocaAddrSpace() != 0)
+    AI = B.CreateAddrSpaceCast(
+        AI, AI->getType()->getPointerElementType()->getPointerTo());
 
   Value *GuardSlot = getStackGuard(TLI, M, B, &SupportsSelectionDAGSP);
   B.CreateCall(Intrinsic::getDeclaration(M, Intrinsic::stackprotector),
@@ -380,7 +383,7 @@ bool StackProtector::InsertStackProtectors() {
   bool SupportsSelectionDAGSP =
       TLI->useStackGuardXorFP() ||
       (EnableSelectionDAGSP && !TM->Options.EnableFastISel);
-  AllocaInst *AI = nullptr;       // Place on stack that stores the stack guard.
+  Value *AI = nullptr;            // Place on stack that stores the stack guard.
 
   for (Function::iterator I = F->begin(), E = F->end(); I != E;) {
     BasicBlock *BB = &*I++;

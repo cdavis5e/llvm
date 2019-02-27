@@ -2785,7 +2785,10 @@ bool X86FastISel::fastLowerIntrinsicCall(const IntrinsicInst *II) {
     EVT PtrTy = TLI.getPointerTy(DL);
 
     const Value *Op1 = II->getArgOperand(0); // The guard's value.
-    const AllocaInst *Slot = cast<AllocaInst>(II->getArgOperand(1));
+    const Value *Op2 = II->getArgOperand(1);
+    const AllocaInst *Slot = dyn_cast<AllocaInst>(Op2);
+    if (!Slot)
+      Slot = cast<AllocaInst>(cast<CastInst>(Op2)->getOperand(0));
 
     MFI.setStackProtectorIndex(FuncInfo.StaticAllocaMap[Slot]);
 

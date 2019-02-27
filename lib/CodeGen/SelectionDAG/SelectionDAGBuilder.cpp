@@ -5819,7 +5819,10 @@ SelectionDAGBuilder::visitIntrinsicCall(const CallInst &I, unsigned Intrinsic) {
     else
       Src = getValue(I.getArgOperand(0));   // The guard's value.
 
-    AllocaInst *Slot = cast<AllocaInst>(I.getArgOperand(1));
+    Value *V = I.getArgOperand(1);
+    AllocaInst *Slot;
+    if (!(Slot = dyn_cast<AllocaInst>(V)))
+      Slot = cast<AllocaInst>(cast<CastInst>(V)->getOperand(0));
 
     int FI = FuncInfo.StaticAllocaMap[Slot];
     MFI.setStackProtectorIndex(FI);
