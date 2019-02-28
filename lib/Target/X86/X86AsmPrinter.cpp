@@ -139,6 +139,17 @@ void X86AsmPrinter::EmitConstantPool() {
   AsmPrinter::EmitConstantPool();
 }
 
+const MCExpr *X86AsmPrinter::lowerConstant(const Constant *CV) {
+  const ConstantExpr *CE = dyn_cast<ConstantExpr>(CV);
+  if (CE && CE->getOpcode() == Instruction::AddrSpaceCast) {
+    // Strip the addrspacecast and pass along the operand
+    PointerType *DstTy = cast<PointerType>(CE->getType());
+    if (DstTy->getAddressSpace() == 0)
+      CV = cast<Constant>(CE->getOperand(0));
+  }
+  return AsmPrinter::lowerConstant(CV);
+}
+
 void X86AsmPrinter::EmitFunctionBodyStart() {
   if (EmitFPOData) {
     X86TargetStreamer *XTS =

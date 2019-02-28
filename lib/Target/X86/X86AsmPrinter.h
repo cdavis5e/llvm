@@ -124,6 +124,7 @@ public:
   }
 
   void EmitConstantPool() override;
+  const MCExpr *lowerConstant(const Constant *CV) override;
 
   bool PrintAsmOperand(const MachineInstr *MI, unsigned OpNo,
                        unsigned AsmVariant, const char *ExtraCode,
