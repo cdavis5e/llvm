@@ -16428,7 +16428,7 @@ SDValue X86TargetLowering::LowerGlobalAddress(const GlobalValue *GV,
   // offset if it is legal.
   unsigned char OpFlags = Subtarget.classifyGlobalReference(GV);
   CodeModel::Model M = DAG.getTarget().getCodeModel();
-  auto PtrVT = getPointerTy(DAG.getDataLayout());
+  auto PtrVT = getPointerTy(DAG.getDataLayout(), GV->getAddressSpace());
   SDValue Result;
   if (OpFlags == X86II::MO_NO_FLAG &&
       X86::isOffsetSuitableForCodeModel(Offset, M)) {
