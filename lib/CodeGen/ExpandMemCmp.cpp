@@ -202,10 +202,11 @@ void MemCmpExpansion::emitLoadCompareByteBlock(unsigned BlockIndex,
   Type *LoadSizeType = Type::getInt8Ty(CI->getContext());
   // Cast source to LoadSizeType*.
   if (Source1->getType() != LoadSizeType)
-    Source1 = Builder.CreateBitCast(Source1, LoadSizeType->getPointerTo());
+    Source1 = Builder.CreateBitCast(Source1, LoadSizeType->getPointerTo(
+            Source1->getType()->getPointerAddressSpace()));
   if (Source2->getType() != LoadSizeType)
-    Source2 = Builder.CreateBitCast(Source2, LoadSizeType->getPointerTo());
-
+    Source2 = Builder.CreateBitCast(Source2, LoadSizeType->getPointerTo(
+            Source2->getType()->getPointerAddressSpace()));
   // Get the base address using the GEPIndex.
   if (GEPIndex != 0) {
     Source1 = Builder.CreateGEP(LoadSizeType, Source1,
@@ -275,9 +276,11 @@ Value *MemCmpExpansion::getCompareLoadPairs(unsigned BlockIndex,
 
     // Cast source to LoadSizeType*.
     if (Source1->getType() != LoadSizeType)
-      Source1 = Builder.CreateBitCast(Source1, LoadSizeType->getPointerTo());
+      Source1 = Builder.CreateBitCast(Source1, LoadSizeType->getPointerTo(
+              Source1->getType()->getPointerAddressSpace()));
     if (Source2->getType() != LoadSizeType)
-      Source2 = Builder.CreateBitCast(Source2, LoadSizeType->getPointerTo());
+      Source2 = Builder.CreateBitCast(Source2, LoadSizeType->getPointerTo(
+              Source2->getType()->getPointerAddressSpace()));
 
     // Get the base address using a GEP.
     if (CurLoadEntry.Offset != 0) {
@@ -394,9 +397,11 @@ void MemCmpExpansion::emitLoadCompareBlock(unsigned BlockIndex) {
   Builder.SetInsertPoint(LoadCmpBlocks[BlockIndex]);
   // Cast source to LoadSizeType*.
   if (Source1->getType() != LoadSizeType)
-    Source1 = Builder.CreateBitCast(Source1, LoadSizeType->getPointerTo());
+    Source1 = Builder.CreateBitCast(Source1, LoadSizeType->getPointerTo(
+            Source1->getType()->getPointerAddressSpace()));
   if (Source2->getType() != LoadSizeType)
-    Source2 = Builder.CreateBitCast(Source2, LoadSizeType->getPointerTo());
+    Source2 = Builder.CreateBitCast(Source2, LoadSizeType->getPointerTo(
+            Source2->getType()->getPointerAddressSpace()));
 
   // Get the base address using a GEP.
   if (CurLoadEntry.Offset != 0) {
@@ -525,9 +530,11 @@ Value *MemCmpExpansion::getMemCmpOneBlock() {
 
   // Cast source to LoadSizeType*.
   if (Source1->getType() != LoadSizeType)
-    Source1 = Builder.CreateBitCast(Source1, LoadSizeType->getPointerTo());
+    Source1 = Builder.CreateBitCast(Source1, LoadSizeType->getPointerTo(
+            Source1->getType()->getPointerAddressSpace()));
   if (Source2->getType() != LoadSizeType)
-    Source2 = Builder.CreateBitCast(Source2, LoadSizeType->getPointerTo());
+    Source2 = Builder.CreateBitCast(Source2, LoadSizeType->getPointerTo(
+            Source2->getType()->getPointerAddressSpace()));
 
   // Load LoadSizeType from the base address.
   Value *LoadSrc1 = Builder.CreateLoad(LoadSizeType, Source1);
