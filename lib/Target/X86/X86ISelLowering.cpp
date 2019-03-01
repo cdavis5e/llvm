@@ -20200,8 +20200,7 @@ static SDValue LowerLoad(SDValue Op, const X86Subtarget &Subtarget,
   SmallVector<SDValue, 8> Chains;
   SDValue Ptr = Ld->getBasePtr();
   unsigned OffsetInc = SclrLoadTy.getSizeInBits() / 8;
-  SDValue Increment = DAG.getConstant(OffsetInc, dl,
-                                      TLI.getPointerTy(DAG.getDataLayout()));
+  SDValue Increment = DAG.getConstant(OffsetInc, dl, Ptr.getValueType());
   SDValue Res = DAG.getUNDEF(LoadUnitVecVT);
 
   unsigned Offset = 0;
