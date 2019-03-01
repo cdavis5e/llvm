@@ -2229,6 +2229,28 @@ bool X86TargetLowering::isNoopAddrSpaceCast(unsigned SrcAS,
   return SrcAS < 256 && DestAS < 256;
 }
 
+bool X86TargetLowering::isCheapAddrSpaceCast(unsigned SrcAS,
+                                             unsigned DestAS) const {
+  assert(SrcAS != DestAS && "Expected different address spaces!");
+
+  if (Subtarget.isTarget64BitWine32() && (SrcAS == 32 || DestAS == 32))
+    return true;
+  return isNoopAddrSpaceCast(SrcAS, DestAS);
+}
+
+bool X86TargetLowering::isLosslessAddrSpaceCast(unsigned SrcAS,
+                                             unsigned DestAS) const {
+  assert(SrcAS != DestAS && "Expected different address spaces!");
+
+  if (Subtarget.isTarget64BitWine32()) {
+    if (SrcAS == 32 && DestAS == 0)
+      return true;
+    if (SrcAS == 0 && DestAS == 32)
+      return false;
+  }
+  return isNoopAddrSpaceCast(SrcAS, DestAS);
+}
+
 //===----------------------------------------------------------------------===//
 //               Return Value Calling Convention Implementation
 //===----------------------------------------------------------------------===//

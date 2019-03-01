@@ -1110,6 +1110,10 @@ namespace llvm {
 
     bool isNoopAddrSpaceCast(unsigned SrcAS, unsigned DestAS) const override;
 
+    bool isCheapAddrSpaceCast(unsigned SrcAS, unsigned DestAS) const override;
+
+    bool isLosslessAddrSpaceCast(unsigned SrcAS, unsigned DestAS)const override;
+
     /// Customize the preferred legalization strategy for certain types.
     LegalizeTypeAction getPreferredVectorAction(EVT VT) const override;
 
