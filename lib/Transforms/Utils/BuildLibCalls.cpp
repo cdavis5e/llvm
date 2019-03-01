@@ -761,7 +761,10 @@ bool llvm::hasUnaryFloatFn(const TargetLibraryInfo *TLI, Type *Ty,
 
 Value *llvm::castToCStr(Value *V, IRBuilder<> &B) {
   unsigned AS = V->getType()->getPointerAddressSpace();
-  return B.CreateBitCast(V, B.getInt8PtrTy(AS), "cstr");
+  V = B.CreateBitCast(V, B.getInt8PtrTy(AS), "cstr");
+  if (AS != 0)
+    V = B.CreateAddrSpaceCast(V, B.getInt8PtrTy(), "cstr.as");
+  return V;
 }
 
 Value *llvm::emitStrLen(Value *Ptr, IRBuilder<> &B, const DataLayout &DL,
