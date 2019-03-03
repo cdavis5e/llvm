@@ -234,6 +234,12 @@ printImpl(raw_ostream &OS, unsigned indent) const {
                     << '\n';
 }
 
+void EmitRegisterClassMatcher::printImpl(raw_ostream &OS,
+                                         unsigned indent) const {
+  OS.indent(indent) << "EmitRegisterClass " << RC->getName()
+                    << " VT=" << getEnumName(VT) << '\n';
+}
+
 void EmitRegisterMatcher::printImpl(raw_ostream &OS, unsigned indent) const {
   OS.indent(indent) << "EmitRegister ";
   if (Reg)

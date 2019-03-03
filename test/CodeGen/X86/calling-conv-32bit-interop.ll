@@ -7,9 +7,8 @@ define x86_64_c32cc i64 @foo(%struct.__thunk_data addrspace(32)* thunkdata %td, 
 ; CHECK-LABEL: _foo:
   %1 = load i8, i8 addrspace(32)* %c
 ; CHECK: movl 32(%esp), %eax
-; CHECK-NEXT: movl %eax, %eax
   %2 = zext i8 %1 to i32
-; CHECK-NEXT: movzbl (%rax), %eax
+; CHECK-NEXT: movzbl (%eax), %eax
   %3 = add i32 %2, %a
 ; CHECK-NEXT: addl 20(%esp), %eax
   %4 = sext i32 %3 to i64
@@ -27,9 +26,9 @@ define void @call_foo() {
   %td = alloca %struct.__thunk_data, align 8, addrspace(32)
 ; CHECK: subl $56, %esp
   %1 = call x86_64_c32cc i64 @foo(%struct.__thunk_data addrspace(32)* %td, i32 0, i64 0, i8 addrspace(32)* null)
-; CHECK-DAG: movl $0, 12(%{{rax|esp}})
-; CHECK-DAG: movq $0, 16(%{{rax|esp}})
-; CHECK-DAG: movl $0, 24(%{{rax|esp}})
+; CHECK-DAG: movl $0, 12(%esp)
+; CHECK-DAG: movq $0, 16(%esp)
+; CHECK-DAG: movl $0, 24(%esp)
 ; CHECK-DAG: leal 32(%rsp), %eax
 ; CHECK: callq _foo
 ; CHECK: addl $56, %esp
@@ -41,9 +40,8 @@ define x86_stdcallcc i64 @bar(%struct.__thunk_data addrspace(32)* thunkdata %td,
 ; CHECK-LABEL: _bar:
   %1 = load i8, i8 addrspace(32)* %c
 ; CHECK: movl 32(%esp), %eax
-; CHECK-NEXT: movl %eax, %eax
   %2 = zext i8 %1 to i32
-; CHECK-NEXT: movzbl (%rax), %eax
+; CHECK-NEXT: movzbl (%eax), %eax
   %3 = add i32 %2, %a
 ; CHECK-NEXT: addl 20(%esp), %eax
   %4 = sext i32 %3 to i64
@@ -61,9 +59,9 @@ define void @call_bar() {
   %td = alloca %struct.__thunk_data, align 8, addrspace(32)
 ; CHECK: subl $56, %esp
   %1 = call x86_stdcallcc i64 @bar(%struct.__thunk_data addrspace(32)* %td, i32 0, i64 0, i8 addrspace(32)* null)
-; CHECK-DAG: movl $0, 12(%{{rax|esp}})
-; CHECK-DAG: movq $0, 16(%{{rax|esp}})
-; CHECK-DAG: movl $0, 24(%{{rax|esp}})
+; CHECK-DAG: movl $0, 12(%esp)
+; CHECK-DAG: movq $0, 16(%esp)
+; CHECK-DAG: movl $0, 24(%esp)
 ; CHECK-DAG: leal 32(%rsp), %eax
 ; CHECK: callq _bar
 ; CHECK: addl $56, %esp
@@ -75,9 +73,8 @@ define x86_fastcallcc i64 @baz(%struct.__thunk_data addrspace(32)* thunkdata %td
 ; CHECK-LABEL: _baz:
   %1 = load i8, i8 addrspace(32)* %c
 ; CHECK: movl 28(%esp), %eax
-; CHECK-NEXT: movl %eax, %eax
   %2 = zext i8 %1 to i32
-; CHECK-NEXT: movzbl (%rax), %eax
+; CHECK-NEXT: movzbl (%eax), %eax
   %3 = add i32 %2, %a
 ; CHECK-NEXT: addl %ecx, %eax
   %4 = sext i32 %3 to i64
@@ -96,8 +93,8 @@ define void @call_baz() {
 ; CHECK: subl $56, %esp
   %1 = call x86_fastcallcc i64 @baz(%struct.__thunk_data addrspace(32)* %td, i32 inreg 0, i64 inreg 0, i8 addrspace(32)* null)
 ; CHECK-DAG: xorl %ecx, %ecx
-; CHECK-DAG: movq $0, 12(%{{rax|esp}})
-; CHECK-DAG: movl $0, 20(%{{rax|esp}})
+; CHECK-DAG: movq $0, 12(%esp)
+; CHECK-DAG: movl $0, 20(%esp)
 ; CHECK-DAG: leal 32(%rsp), %eax
 ; CHECK: callq _baz
 ; CHECK: addl $56, %esp
@@ -113,7 +110,7 @@ define x86_thiscallcc void @quux(%struct.__thunk_data addrspace(32)* thunkdata %
   %1 = load i8, i8 addrspace(32)* %c
 ; CHECK: movl 32(%esp), %edx
   %2 = zext i8 %1 to i32
-; CHECK: movzbl (%{{[re]}}dx), %edx
+; CHECK: movzbl (%edx), %edx
   %3 = add i32 %2, %a
 ; CHECK-NEXT: addl %ecx, %edx
   %4 = sext i32 %3 to i64
@@ -123,7 +120,7 @@ define x86_thiscallcc void @quux(%struct.__thunk_data addrspace(32)* thunkdata %
   %6 = getelementptr inbounds %s, %s addrspace(32)* %sret, i32 0, i32 0
   store i64 %5, i64 addrspace(32)* %6
   ret void
-; CHECK-NEXT: movq %rcx, (%{{[re]}}ax)
+; CHECK-NEXT: movq %rcx, (%eax)
 ; CHECK: retq{{$}}
 }
 
@@ -133,11 +130,11 @@ define void @call_quux() {
   %sr = alloca %s, align 8, addrspace(32)
 ; CHECK: subl $72, %esp
   call x86_thiscallcc void @quux(%struct.__thunk_data addrspace(32)* %td, %s addrspace(32)* sret %sr, i32 inreg 0, i64 0, i8 addrspace(32)* null)
-; CHECK: leal 40(%rsp), %ecx
-; CHECK: movl %ecx, 12(%{{rax|esp}})
+; CHECK: leal 40(%rsp), %eax
+; CHECK: movl %eax, 12(%esp)
 ; CHECK-DAG: xorl %ecx, %ecx
-; CHECK-DAG: movq $0, 16(%{{rax|esp}})
-; CHECK-DAG: movl $0, 24(%{{rax|esp}})
+; CHECK-DAG: movq $0, 16(%esp)
+; CHECK-DAG: movl $0, 24(%esp)
 ; CHECK-DAG: leal 48(%rsp), %eax
 ; CHECK: callq _quux
 ; CHECK: addl $72, %esp

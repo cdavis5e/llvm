@@ -357,7 +357,7 @@ public:
   /// Return the maximal subclass of the given register class that is
   /// allocatable or NULL.
   const TargetRegisterClass *
-    getAllocatableClass(const TargetRegisterClass *RC) const;
+    getAllocatableClass(const TargetRegisterClass *RC, MVT VT = MVT::Any) const;
 
   /// Returns a bitset indexed by register number indicating if a register is
   /// allocatable or not. If a register class is specified, returns the subset

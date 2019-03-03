@@ -1,7 +1,4 @@
 ; RUN: llc < %s -mtriple=x86_64-linux-wine32 | FileCheck %s
-; The MOVs aren't converted to PUSHes because the stack pointer currently must
-; be expanded to 32 bits before being dereferenced.
-; XFAIL: *
 
 declare void @bar(i32 addrspace(32)*, i32 addrspace(32)*, i32 addrspace(32)*, i32 addrspace(32)*, i32 addrspace(32)*, i64 addrspace(32)*, i64, i64, i64)
 

@@ -638,8 +638,9 @@ void MatcherGen::EmitResultLeafAsOperand(const TreePatternNode *N,
     if (Def->isSubClassOf("RegisterOperand"))
       Def = Def->getValueAsDef("RegClass");
     if (Def->isSubClassOf("RegisterClass")) {
-      std::string Value = getQualifiedName(Def) + "RegClassID";
-      AddMatcher(new EmitStringIntegerMatcher(Value, MVT::i32));
+      const CodeGenRegisterClass *RC =
+          CGP.getTargetInfo().getRegBank().getRegClass(Def);
+      AddMatcher(new EmitRegisterClassMatcher(RC, MVT::i32));
       ResultOps.push_back(NextRecordedOperandNo++);
       return;
     }

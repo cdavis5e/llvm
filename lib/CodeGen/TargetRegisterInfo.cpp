@@ -171,14 +171,16 @@ Printable printRegClassOrBank(unsigned Reg, const MachineRegisterInfo &RegInfo,
 /// getAllocatableClass - Return the maximal subclass of the given register
 /// class that is alloctable, or NULL.
 const TargetRegisterClass *
-TargetRegisterInfo::getAllocatableClass(const TargetRegisterClass *RC) const {
+TargetRegisterInfo::getAllocatableClass(const TargetRegisterClass *RC,
+                                        MVT VT) const {
   if (!RC || RC->isAllocatable())
     return RC;
 
   for (BitMaskClassIterator It(RC->getSubClassMask(), *this); It.isValid();
        ++It) {
     const TargetRegisterClass *SubRC = getRegClass(It.getID());
-    if (SubRC->isAllocatable())
+    if (SubRC->isAllocatable() &&
+        (VT == MVT::Any || isTypeLegalForClass(*SubRC, VT)))
       return SubRC;
   }
   return nullptr;

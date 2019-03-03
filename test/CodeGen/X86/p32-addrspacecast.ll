@@ -10,8 +10,7 @@ define i32 @foo(i32* %a, i32 addrspace(32)* %b) {
 }
 
 ; CHECK-LABEL: foo:
-; CHECK-DAG:     movl %edi, %{{e?}}[[R1:.*]]{{d?}}
-; CHECK-DAG:     movl %esi, %{{e?}}[[R2:.*]]{{d?}}
-; CHECK:         movl (%{{r?}}[[R1]]), %eax
+; CHECK:         movl %esi, %{{e?}}[[R2:.*]]{{d?}}
+; CHECK:         movl (%edi), %eax
 ; CHECK-NEXT:    addl (%{{r?}}[[R2]]), %eax
 ; CHECK-NEXT:    retq

@@ -590,6 +590,23 @@ EmitMatcher(const Matcher *N, unsigned Indent, unsigned CurrentIdx,
     return 3;
   }
 
+  case Matcher::EmitRegisterClass: {
+    const auto *Matcher = cast<EmitRegisterClassMatcher>(N);
+    const CodeGenRegisterClass *RC = Matcher->getRegClass();
+    OS << "OPC_EmitInteger, " << getEnumName(Matcher->getVT()) << ", ";
+    assert(RC);
+    if (RC->EnumValue > 127) {
+      unsigned Bytes = 2 + EmitVBRValue(RC->EnumValue, OS);
+      if (!OmitComments)
+        OS << "/*" << getQualifiedName(RC->getDef()) << "RegClassID*/";
+      OS << '\n';
+      return Bytes;
+    } else {
+      OS << getQualifiedName(RC->getDef()) << "RegClassID,\n";
+      return 3;
+    }
+  }
+
   case Matcher::EmitRegister: {
     const EmitRegisterMatcher *Matcher = cast<EmitRegisterMatcher>(N);
     const CodeGenRegister *Reg = Matcher->getReg();
@@ -968,6 +985,7 @@ static StringRef getOpcodeString(Matcher::KindTy Kind) {
     return "OPC_CheckFoldableChainNode"; break;
   case Matcher::EmitInteger: return "OPC_EmitInteger"; break;
   case Matcher::EmitStringInteger: return "OPC_EmitStringInteger"; break;
+  case Matcher::EmitRegisterClass: return "OPC_EmitRegisterClass"; break;
   case Matcher::EmitRegister: return "OPC_EmitRegister"; break;
   case Matcher::EmitConvertToTarget: return "OPC_EmitConvertToTarget"; break;
   case Matcher::EmitMergeInputChains: return "OPC_EmitMergeInputChains"; break;

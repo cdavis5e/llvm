@@ -41541,6 +41541,38 @@ X86TargetLowering::getRegForInlineAsmConstraint(const TargetRegisterInfo *TRI,
     return Res;
   }
 
+  // The base implementation may have picked one of the MIXED_ADDR_ACCESS
+  // classes, which contains all the registers that can be used as a pointer
+  // in 64-bit code. This class is only meant to be returned from
+  // X86RegisterInfo::getPointerRegClass(), to avoid redundant copies for
+  // 32-bit pointers in 64-bit-native code. We can't use it here. If we have
+  // one of those regclasses, pick the corresponding GR32 or GR64 regclass.
+  if (Res.second == &X86::MIXED_ADDR_ACCESSRegClass) {
+    if (X86::GR64RegClass.contains(Res.first)) {
+      if (!Subtarget.is64Bit()) return std::make_pair(0, nullptr);
+      Res.second = &X86::GR64RegClass;
+    } else
+      Res.second = &X86::GR32RegClass;
+  } else if (Res.second == &X86::MIXED_ADDR_ACCESS_NOREXRegClass) {
+    if (X86::GR64_NOREXRegClass.contains(Res.first)) {
+      if (!Subtarget.is64Bit()) return std::make_pair(0, nullptr);
+      Res.second = &X86::GR64_NOREXRegClass;
+    } else
+      Res.second = &X86::GR32_NOREXRegClass;
+  } else if (Res.second == &X86::MIXED_ADDR_ACCESS_NOSPRegClass) {
+    if (X86::GR64_NOSPRegClass.contains(Res.first)) {
+      if (!Subtarget.is64Bit()) return std::make_pair(0, nullptr);
+      Res.second = &X86::GR64_NOSPRegClass;
+    } else
+      Res.second = &X86::GR32_NOSPRegClass;
+  } else if (Res.second == &X86::MIXED_ADDR_ACCESS_NOREX_NOSPRegClass) {
+    if (X86::GR64_NOREX_NOSPRegClass.contains(Res.first)) {
+      if (!Subtarget.is64Bit()) return std::make_pair(0, nullptr);
+      Res.second = &X86::GR64_NOREX_NOSPRegClass;
+    } else
+      Res.second = &X86::GR32_NOREX_NOSPRegClass;
+  }
+
   // Make sure it isn't a register that requires 64-bit mode.
   if (!Subtarget.is64Bit() &&
       (isFRClass(*Res.second) || isGRClass(*Res.second)) &&

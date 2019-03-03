@@ -1,13 +1,10 @@
 ; RUN: llc < %s -mtriple=x86_64-linux-wine32 | FileCheck %s
-; CHECK-DAG:  mov
-; CHECK-DAG:  movl %esi, %ecx
-; CHECK:      movb %ah, (%rcx)
-; CHECK-DAG:  mov
-; CHECK-DAG:  movl %esi, %ecx
-; CHECK:      movb %ah, (%rcx)
-; CHECK-DAG:  mov
-; CHECK-DAG:  movl %esi, %ecx
-; CHECK:      movb %ah, (%rcx)
+; CHECK:      mov
+; CHECK:      movb %ah, (%esi)
+; CHECK:      mov
+; CHECK:      movb %ah, (%esi)
+; CHECK:      mov
+; CHECK:      movb %ah, (%esi)
 ; CHECK-NOT:  mov
 
 ; Use h-register extract and store.

@@ -134,7 +134,7 @@ EmitCopyFromReg(SDNode *Node, unsigned ResNo, bool IsClone, bool IsCloned,
             const TargetRegisterClass *RC = nullptr;
             if (i+II.getNumDefs() < II.getNumOperands()) {
               RC = TRI->getAllocatableClass(
-                TII->getRegClass(II, i+II.getNumDefs(), TRI, *MF));
+                TII->getRegClass(II, i+II.getNumDefs(), TRI, *MF), VT);
             }
             if (!UseRC)
               UseRC = RC;
@@ -219,8 +219,10 @@ void InstrEmitter::CreateVirtualRegisters(SDNode *Node,
     // is a vreg in the same register class, use the CopyToReg'd destination
     // register instead of creating a new vreg.
     unsigned VRBase = 0;
+    EVT VT = Node->getValueType(i);
     const TargetRegisterClass *RC =
-      TRI->getAllocatableClass(TII->getRegClass(II, i, TRI, *MF));
+      TRI->getAllocatableClass(TII->getRegClass(II, i, TRI, *MF),
+                               VT.isSimple() ? VT.getSimpleVT() : MVT::Any);
     // Always let the value type influence the used register class. The
     // constraints on the instruction may be too lax to represent the value
     // type correctly. For example, a 64-bit float (X86::FR64) can't live in
@@ -338,7 +340,9 @@ InstrEmitter::AddRegisterOperand(MachineInstrBuilder &MIB,
       const TargetRegisterClass *ConstrainedRC
         = MRI->constrainRegClass(VReg, OpRC, MinRCSize);
       if (!ConstrainedRC) {
-        OpRC = TRI->getAllocatableClass(OpRC);
+        EVT VT = Op.getValueType();
+        OpRC = TRI->getAllocatableClass(
+            OpRC, VT.isSimple() ? VT.getSimpleVT() : MVT::Any);
         assert(OpRC && "Constraints cannot be fulfilled for allocation");
         unsigned NewVReg = MRI->createVirtualRegister(OpRC);
         BuildMI(*MBB, InsertPos, Op.getNode()->getDebugLoc(),

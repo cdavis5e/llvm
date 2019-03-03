@@ -495,6 +495,20 @@ def LOW32_ADDR_ACCESS : RegisterClass<"X86", [i32], 32, (add GR32, RIP)>;
 def LOW32_ADDR_ACCESS_RBP : RegisterClass<"X86", [i32], 32,
                                           (add LOW32_ADDR_ACCESS, RBP)>;
 
+// Register classes to support mixed 32-bit and 64-bit pointers in a 64-bit
+// environment.
+
+let isAllocatable = 0 in {
+  def MIXED_ADDR_ACCESS : RegisterClass<"X86", [i32, i64], 32,
+                                        (interleave GR32, GR64)>;
+  def MIXED_ADDR_ACCESS_NOREX : RegisterClass<"X86", [i32, i64], 32,
+                                           (interleave GR32_NOREX, GR64_NOREX)>;
+  def MIXED_ADDR_ACCESS_NOSP : RegisterClass<"X86", [i32, i64], 32,
+                                             (interleave GR32_NOSP, GR64_NOSP)>;
+  def MIXED_ADDR_ACCESS_NOREX_NOSP : RegisterClass<"X86", [i32, i64], 32,
+                                (interleave GR32_NOREX_NOSP, GR64_NOREX_NOSP)>;
+}
+
 // A class to support the 'A' assembler constraint: [ER]AX then [ER]DX.
 def GR32_AD : RegisterClass<"X86", [i32], 32, (add EAX, EDX)>;
 def GR64_AD : RegisterClass<"X86", [i64], 64, (add RAX, RDX)>;

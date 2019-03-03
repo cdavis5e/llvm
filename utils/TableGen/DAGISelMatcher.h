@@ -18,6 +18,7 @@
 
 namespace llvm {
   struct CodeGenRegister;
+  class CodeGenRegisterClass;
   class CodeGenDAGPatterns;
   class Matcher;
   class PatternToMatch;
@@ -76,6 +77,7 @@ public:
     // Node creation/emisssion.
     EmitInteger,          // Create a TargetConstant
     EmitStringInteger,    // Create a TargetConstant from a string.
+    EmitRegisterClass,    // Create a RegClass TargetConstant.
     EmitRegister,         // Create a register.
     EmitConvertToTarget,  // Convert a imm/fpimm to target imm/fpimm
     EmitMergeInputChains, // Merge together a chains for an input.
@@ -787,6 +789,30 @@ private:
   bool isEqualImpl(const Matcher *M) const override {
     return cast<EmitStringIntegerMatcher>(M)->Val == Val &&
            cast<EmitStringIntegerMatcher>(M)->VT == VT;
+  }
+};
+
+/// A target constant whose value is a register class ID.
+class EmitRegisterClassMatcher : public Matcher {
+  const CodeGenRegisterClass *RC;
+  MVT::SimpleValueType VT;
+public:
+  EmitRegisterClassMatcher(const CodeGenRegisterClass *rc,
+                           MVT::SimpleValueType vt)
+    : Matcher(EmitRegisterClass), RC(rc), VT(vt) {}
+
+  const CodeGenRegisterClass *getRegClass() const { return RC; }
+  MVT::SimpleValueType getVT() const { return VT; }
+
+  static bool classof(const Matcher *N) {
+    return N->getKind() == EmitRegisterClass;
+  }
+
+private:
+  void printImpl(raw_ostream &OS, unsigned indent) const override;
+  bool isEqualImpl(const Matcher *M) const override {
+    return cast<EmitRegisterClassMatcher>(M)->RC == RC &&
+           cast<EmitRegisterClassMatcher>(M)->VT == VT;
   }
 };
 

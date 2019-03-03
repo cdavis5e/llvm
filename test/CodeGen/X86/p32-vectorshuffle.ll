@@ -19,9 +19,9 @@ exit:                                             ; preds = %entry
 }
 
 ; CHECK-LABEL: _foo:
-; CHECK: movq	(%[[PTR:.*]]), %[[MM0:xmm[0-9]+]]
+; CHECK: movq	(%{{e?}}[[PTR:.*]]{{d?}}), %[[MM0:xmm[0-9]+]]
 ; CHECK: pshufd	$68, %[[MM0]], %[[MM0]]
 ; CHECK: pxor	%[[MM1:xmm[0-9]+]], %[[MM1]]
 ; CHECK: psubd	%[[MM0]], %[[MM1]]
-; CHECK: movdqa	%[[MM1]], (%[[PTR]])
+; CHECK: movdqa	%[[MM1]], (%{{r?}}[[PTR]])
 

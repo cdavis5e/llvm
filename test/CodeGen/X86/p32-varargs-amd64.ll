@@ -36,15 +36,11 @@ entry:
   call void @llvm.va_start(i8* %1)
 ; CHECK: leal -32(%rbp), %[[AP:.*]]
 ; CHECK: leal -208(%rbp), %[[AP_END:.*]]
-; CHECK: movl %[[AP]], %{{e?}}[[AP2:.*]]{{d?}}
-; CHECK: movl %[[AP_END]], 16(%{{r?}}[[AP2]])
+; CHECK: movl %[[AP_END]], 16(%[[AP]])
 ; CHECK: leal 16(%rbp), %[[ARGS:.*]]
-; CHECK: movl %[[AP]], %{{e?}}[[AP2:.*]]{{d?}}
-; CHECK: movl %[[ARGS]], 8(%{{r?}}[[AP2]])
-; CHECK: movl %[[AP]], %{{e?}}[[AP2:.*]]{{d?}}
-; CHECK: movl $48, 4(%{{r?}}[[AP2]])
-; CHECK: movl %[[AP]], %{{e?}}[[AP2:.*]]{{d?}}
-; CHECK: movl $8, (%{{r?}}[[AP2]])
+; CHECK: movl %[[ARGS]], 8(%[[AP]])
+; CHECK: movl $48, 4(%[[AP]])
+; CHECK: movl $8, (%[[AP]])
   %2 = load i8*, i8** @input_file_name, align 8
   %tobool = icmp ne i8* %2, null
   br i1 %tobool, label %if.then, label %if.else

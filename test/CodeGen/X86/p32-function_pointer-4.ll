@@ -17,9 +17,8 @@ entry:
 ; CHECK:      movq	foo@GOTPCREL(%rip), %rax
 ; CHECK-NEXT: movl	(%rax), %{{[er]}}[[REG:[a-z]*|[0-9]+]]{{d?}}
   tail call x86_64_c32cc addrspace(32) void %0(%struct.__thunk_data addrspace(32)* thunkdata %td, i8 addrspace(32)* %h, i64 0) nounwind
-; CHECK: movl	%esp, %e[[PTR:.*]]
-; CHECK: movl	%edi, (%r[[PTR]])
-; CHECK: movq	$0, 4(%r[[PTR]])
+; CHECK: movl	%edi, (%esp)
+; CHECK: movq	$0, 4(%esp)
 ; CHECK: movq	%r[[REG]], 8(%eax)
 ; CHECK: callq	__i386_on_x86_64_invoke32_0
   %1 = load void (%struct.__thunk_data addrspace(32)*, i8 addrspace(32)*, i64) addrspace(32)*, void (%struct.__thunk_data addrspace(32)*, i8 addrspace(32)*, i64) addrspace(32)** @bar, align 4
@@ -28,9 +27,8 @@ entry:
   tail call x86_stdcallcc addrspace(32) void %1(%struct.__thunk_data addrspace(32)* thunkdata %td, i8 addrspace(32)* %h, i64 0) nounwind
 ; The callee will pop only 12 bytes from the stack. Make sure the stack
 ; gets readjusted after the call.
-; CHECK: movl	%esp, %e[[PTR:.*]]
-; CHECK: movl	%edi, (%r[[PTR]])
-; CHECK: movq	$0, 4(%r[[PTR]])
+; CHECK: movl	%edi, (%esp)
+; CHECK: movq	$0, 4(%esp)
 ; CHECK: movq	%r[[REG2]], 8(%eax)
 ; CHECK: callq	__i386_on_x86_64_invoke32_12
 ; CHECK: subl	$12, %esp
@@ -38,8 +36,7 @@ entry:
 ; CHECK: movq	baz@GOTPCREL(%rip), %rax
 ; CHECK: movl	(%rax), %{{[er]}}[[REG3:[a-z]*|[0-9]+]]{{d?}}
   tail call x86_fastcallcc addrspace(32) void %2(%struct.__thunk_data addrspace(32)* thunkdata %td, i8 addrspace(32)* inreg %h, i32 inreg 0, i64 0) nounwind
-; CHECK: movl	%esp, %e[[PTR:.*]]
-; CHECK: movq	$0, (%r[[PTR]])
+; CHECK: movq	$0, (%esp)
 ; CHECK: xorl	%edx, %edx
 ; CHECK: movl	%edi, %ecx
 ; CHECK: movq	%r[[REG3]], 8(%eax)
@@ -49,8 +46,7 @@ entry:
 ; CHECK: movq	quux@GOTPCREL(%rip), %rax
 ; CHECK: movl	(%rax), %{{[er]}}[[REG4:[a-z]*|[0-9]+]]{{d?}}
   tail call x86_thiscallcc addrspace(32) void %3(%struct.__thunk_data addrspace(32)* thunkdata %td, i8 addrspace(32)* inreg %h, i64 0) nounwind
-; CHECK: movl	%esp, %e[[PTR:.*]]
-; CHECK: movq	$0, (%r[[PTR]])
+; CHECK: movq	$0, (%esp)
 ; CHECK: movl	%edi, %ecx
 ; CHECK: movq	%r[[REG4]], 8(%eax)
 ; CHECK: callq  __i386_on_x86_64_invoke32_8

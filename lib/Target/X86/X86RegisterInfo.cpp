@@ -183,6 +183,8 @@ X86RegisterInfo::getPointerRegClass(const MachineFunction &MF,
   switch (Kind) {
   default: llvm_unreachable("Unexpected Kind in getPointerRegClass!");
   case 0: // Normal GPRs.
+    if (Subtarget.isTarget64BitWine32())
+      return &X86::MIXED_ADDR_ACCESSRegClass;
     if (Subtarget.isTarget64BitLP64())
       return &X86::GR64RegClass;
     // If the target is 64bit but we have been told to use 32bit addresses,
@@ -199,15 +201,21 @@ X86RegisterInfo::getPointerRegClass(const MachineFunction &MF,
     }
     return &X86::GR32RegClass;
   case 1: // Normal GPRs except the stack pointer (for encoding reasons).
+    if (Subtarget.isTarget64BitWine32())
+      return &X86::MIXED_ADDR_ACCESS_NOSPRegClass;
     if (Subtarget.isTarget64BitLP64())
       return &X86::GR64_NOSPRegClass;
     // NOSP does not contain RIP, so no special case here.
     return &X86::GR32_NOSPRegClass;
   case 2: // NOREX GPRs.
+    if (Subtarget.isTarget64BitWine32())
+      return &X86::MIXED_ADDR_ACCESS_NOREXRegClass;
     if (Subtarget.isTarget64BitLP64())
       return &X86::GR64_NOREXRegClass;
     return &X86::GR32_NOREXRegClass;
   case 3: // NOREX GPRs except the stack pointer (for encoding reasons).
+    if (Subtarget.isTarget64BitWine32())
+      return &X86::MIXED_ADDR_ACCESS_NOREX_NOSPRegClass;
     if (Subtarget.isTarget64BitLP64())
       return &X86::GR64_NOREX_NOSPRegClass;
     // NOSP does not contain RIP, so no special case here.
@@ -766,6 +774,20 @@ X86RegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
       (uint64_t)MI.getOperand(FIOperandNum+3).getOffset();
     MI.getOperand(FIOperandNum + 3).setOffset(Offset);
   }
+}
+
+bool X86RegisterInfo::shouldCoalesce(MachineInstr *MI,
+                                     const TargetRegisterClass *SrcRC,
+                                     unsigned SubReg,
+                                     const TargetRegisterClass *DstRC,
+                                     unsigned DstSubReg,
+                                     const TargetRegisterClass *NewRC,
+                                     LiveIntervals &LIS) const {
+  // MIXED_ADDR_ACCESS should never be used outside of getPointerRegClass().
+  return NewRC != &X86::MIXED_ADDR_ACCESSRegClass &&
+         NewRC != &X86::MIXED_ADDR_ACCESS_NOREXRegClass &&
+         NewRC != &X86::MIXED_ADDR_ACCESS_NOSPRegClass &&
+         NewRC != &X86::MIXED_ADDR_ACCESS_NOREX_NOSPRegClass;
 }
 
 unsigned X86RegisterInfo::getFrameRegister(const MachineFunction &MF) const {

@@ -259,7 +259,7 @@ namespace {
       Base = (AM.BaseType == X86ISelAddressMode::FrameIndexBase)
                  ? CurDAG->getTargetFrameIndex(
                        AM.Base_FrameIndex,
-                       TLI->getPointerTy(CurDAG->getDataLayout()))
+                       TLI->getFrameIndexTy(CurDAG->getDataLayout()))
                  : AM.Base_Reg;
       Scale = getI8Imm(AM.Scale, DL);
       Index = AM.IndexReg;
