@@ -25,6 +25,9 @@ entry:
 }
 
 declare hidden x86_64_c32cc void @wsprintfW({ [6 x i64] } addrspace(32)* thunkdata, i16*, i16*, ...) local_unnamed_addr
+; CHECK-NOT: _winethunk_wsprintfW
+; CHECK-NOT: ___i386_on_x86_64_thunk_wsprintfW
+; CHECK-NOT: ___i386_on_x86_64_cs64
 
 attributes #0 = { nounwind ssp uwtable "no-frame-pointer-elim"="true" "no-frame-pointer-elim-non-leaf" "stack-protector-buffer-size"="8" "thunk-cs32-name"="wine_32on64_cs32" "thunk-cs64-name"="wine_32on64_cs64" "thunk-prefix"="wine" }
 attributes #2 = { nounwind }

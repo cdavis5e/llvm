@@ -119,6 +119,9 @@ bool X866432InteropThunkInserter::generateThunks(Module &M, Function &Fn) {
       CC != CallingConv::X86_FastCall && CC != CallingConv::X86_ThisCall)
     return false;
 
+  if (Fn.empty())
+    return false;
+
   StringRef Prefix = "__i386_on_x86_64_";
   if (Fn.hasFnAttribute("thunk-prefix"))
     Prefix = Fn.getFnAttribute("thunk-prefix").getValueAsString();
