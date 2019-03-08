@@ -438,10 +438,16 @@ void X86CallFrameOptimization::collectCallInfo(MachineFunction &MF,
     // We really don't want to consider the unaligned case.
     if (StackDisp & (SlotSize - 1))
       return;
-    StackDisp >>= Log2SlotSize;
 
-    assert((size_t)StackDisp < Context.ArgStoreVector.size() &&
+    assert(StackDisp < TII->getFrameSize(*FrameSetup) &&
            "Function call has more parameters than the stack is adjusted for.");
+
+    // We don't want to consider the case where the stack slot extends past the
+    // stack frame, either.
+    if ((TII->getFrameSize(*FrameSetup) - StackDisp) < SlotSize)
+      return;
+
+    StackDisp >>= Log2SlotSize;
 
     // If the same stack slot is being filled twice, something's fishy.
     if (Context.ArgStoreVector[StackDisp] != nullptr)
