@@ -3,7 +3,7 @@
 
 %struct.__thunk_data = type { i64, i64, i64 }
 
-define x86_64_c32cc i64 @foo(%struct.__thunk_data addrspace(32)* thunkdata %td, i32 %a, i64 %b, i8 addrspace(32)* %c) {
+define x86_64_c32cc i64 @foo(%struct.__thunk_data addrspace(32)* thunkdata %td, i32 %a, i64 %b, i8 addrspace(32)* %c, ...) {
 ; CHECK-LABEL: _foo:
   %1 = load i8, i8 addrspace(32)* %c
 ; CHECK: movl 32(%esp), %eax
@@ -25,11 +25,13 @@ define void @call_foo() {
 ; CHECK-LABEL: _call_foo:
   %td = alloca %struct.__thunk_data, align 8, addrspace(32)
 ; CHECK: subl $56, %esp
-  %1 = call x86_64_c32cc i64 @foo(%struct.__thunk_data addrspace(32)* %td, i32 0, i64 0, i8 addrspace(32)* null)
+  %1 = call x86_64_c32cc i64 (%struct.__thunk_data addrspace(32)*, i32, i64, i8 addrspace(32)*, ...) @foo(%struct.__thunk_data addrspace(32)* %td, i32 0, i64 0, i8 addrspace(32)* null)
+; CHECK-NOT: movb $0, %al
 ; CHECK-DAG: movl $0, 12(%esp)
 ; CHECK-DAG: movq $0, 16(%esp)
 ; CHECK-DAG: movl $0, 24(%esp)
 ; CHECK-DAG: leal 32(%rsp), %eax
+; CHECK-NOT: movb $0, %al
 ; CHECK: callq _foo
 ; CHECK: addl $56, %esp
 ; CHECK: retq
