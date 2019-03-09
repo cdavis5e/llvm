@@ -311,6 +311,7 @@ X86TargetLowering::X86TargetLowering(const X86TargetMachine &TM,
   if (Subtarget.isTarget64BitWine32()) {
     setOperationAction(ISD::ADDRSPACECAST, MVT::i32, Custom);
     setOperationAction(ISD::ADDRSPACECAST, MVT::i64, Custom);
+    setOperationAction(ISD::BUILD_PAIR, MVT::i64, Expand);
   }
 
   // Scalar integer divide and remainder are lowered to use operations that

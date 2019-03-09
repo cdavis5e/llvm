@@ -1,5 +1,5 @@
-; RUN: llc < %s -mtriple=x86_64-apple-darwin17-wine32 | FileCheck %s
-; RUN: llc < %s -mtriple=x86_64-apple-darwin17-wine32 -fast-isel | FileCheck %s
+; RUN: llc < %s -mtriple=x86_64-apple-darwin17-wine32 | FileCheck %s -check-prefixes=CHECK,CHECK-SDAG
+; RUN: llc < %s -mtriple=x86_64-apple-darwin17-wine32 -fast-isel | FileCheck %s -check-prefixes=CHECK,CHECK-FAST
 
 %struct.__thunk_data = type { i64, i64, i64 }
 
@@ -21,7 +21,7 @@ define x86_64_c32cc i64 @foo(%struct.__thunk_data addrspace(32)* thunkdata %td, 
 ; CHECK: retq{{$}}
 }
 
-define void @call_foo() {
+define i64 @call_foo() {
 ; CHECK-LABEL: _call_foo:
   %td = alloca %struct.__thunk_data, align 8, addrspace(32)
 ; CHECK: subl $56, %esp
@@ -33,9 +33,14 @@ define void @call_foo() {
 ; CHECK-DAG: leal 32(%rsp), %eax
 ; CHECK-NOT: movb $0, %al
 ; CHECK: callq _foo
+  %2 = add i64 %1, 10
+; CHECK: shlq $32, %rdx
+; CHECK-SDAG: leaq 10(%rax,%rdx), %rax
+; CHECK-FAST: orq %rdx, %rax
+; CHECK-FAST: addq $10, %rax
+  ret i64 %2
 ; CHECK: addl $56, %esp
 ; CHECK: retq
-  ret void
 }
 
 define x86_stdcallcc i64 @bar(%struct.__thunk_data addrspace(32)* thunkdata %td, i32 %a, i64 %b, i8 addrspace(32)* %c) {
